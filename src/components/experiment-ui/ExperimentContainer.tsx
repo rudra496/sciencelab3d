@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, ReactNode } from "react";
+import { useState, useRef, useEffect, ReactNode, useCallback } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
@@ -18,8 +18,11 @@ export interface ExperimentContainerProps {
 }
 
 /**
- * Professional experiment container with toggleable UI panels
- * Designed for both desktop and mobile with responsive layout
+ * Professional fullscreen experiment container
+ * - 100vw × 100vh viewport coverage
+ * - No scrollbars or overflow
+ * - Proper Three.js resource disposal
+ * - Responsive design
  */
 export function ExperimentContainer({
   children,
@@ -37,20 +40,41 @@ export function ExperimentContainer({
   const [showDetails, setShowDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Detect mobile on mount and resize - client side only
+  // Refs for cleanup
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Detect mobile with debounce
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 150);
     };
+
     checkMobile();
     window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    return () => {
+      clearTimeout(timeoutId);
+      window.removeEventListener("resize", checkMobile);
+    };
+  }, []);
+
+  // Prevent body scroll when experiment is mounted
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, []);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-gray-950">
-      {/* Main 3D Canvas */}
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-gray-950">
+      {/* Main 3D Canvas - Fullscreen */}
       <Canvas
+        ref={canvasRef}
         shadows
         gl={{
           antialias: true,
@@ -61,6 +85,7 @@ export function ExperimentContainer({
           toneMappingExposure: 1.2,
         }}
         dpr={[1, 2]}
+        className="w-full h-full"
       >
         {/* Camera */}
         <PerspectiveCamera
@@ -133,9 +158,9 @@ export function ExperimentContainer({
         <group>{children}</group>
       </Canvas>
 
-      {/* Header Bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
-        <div className="flex items-center justify-between">
+      {/* Header Bar - Floating */}
+      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 via-black/60 to-transparent p-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
               {title}
@@ -198,15 +223,15 @@ export function ExperimentContainer({
           absolute top-0 right-0 z-30 h-full w-80 md:w-96
           bg-gradient-to-l from-gray-900/95 to-gray-900/90 backdrop-blur-xl
           border-l border-purple-500/30 shadow-2xl
-          transform transition-transform duration-300 ease-out
+          transform transition-transform duration-300 ease-out overflow-y-auto
           ${showControls ? "translate-x-0" : "translate-x-full"}
         `}>
-          <div className="p-6 h-full overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6 sticky top-0 bg-gray-900/95 backdrop-blur-sm py-2 -mx-6 px-6 border-b border-gray-700">
               <h2 className="text-xl font-bold text-purple-400">Controls</h2>
               <button
                 onClick={() => setShowControls(false)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-white transition-colors text-2xl"
               >
                 ✕
               </button>
@@ -240,19 +265,19 @@ export function ExperimentContainer({
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowDetails(false)}
           />
-          <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-6 border-b border-green-500/30">
+          <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-6 border-b border-green-500/30 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold text-green-400">Experiment Details</h2>
                 <button
                   onClick={() => setShowDetails(false)}
-                  className="text-gray-400 hover:text-white text-2xl"
+                  className="text-gray-400 hover:text-white text-2xl transition-colors"
                 >
                   ✕
                 </button>
               </div>
             </div>
-            <div className="p-6">
+            <div className="p-6 overflow-y-auto flex-1">
               {details}
             </div>
           </div>
