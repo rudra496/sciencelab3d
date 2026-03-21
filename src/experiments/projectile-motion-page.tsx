@@ -334,6 +334,13 @@ export default function ProjectileMotionPage() {
       controls={controls}
       dataPanel={dataPanel}
       details={details}
+      simulationBar={{
+        isPlaying,
+        onPlayPause: () => setIsPlaying((p) => !p),
+        onReset: handleReset,
+        speed: simulationSpeed,
+        onSpeedChange: setSimulationSpeed,
+      }}
     >
       <ProjectileMotionSceneComponent
         onDataChange={setData}

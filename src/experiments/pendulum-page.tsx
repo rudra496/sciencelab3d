@@ -270,6 +270,13 @@ export default function PendulumExperimentPage() {
       controls={controls}
       dataPanel={dataPanel}
       details={details}
+      simulationBar={{
+        isPlaying,
+        onPlayPause: handlePlayPause,
+        onReset: handleReset,
+        speed: simulationSpeed,
+        onSpeedChange: setSimulationSpeed,
+      }}
     >
       <PendulumSceneComponent
         onDataChange={setData}

@@ -1,5 +1,5 @@
 export { ExperimentContainer } from './ExperimentContainer';
-export type { ExperimentContainerProps } from './ExperimentContainer';
+export type { ExperimentContainerProps, SimulationBarProps } from './ExperimentContainer';
 
 export { ControlPanel } from './ControlPanel';
 export type { ControlPanelProps } from './ControlPanel';
