@@ -15,6 +15,17 @@
   --glow-purple: 0 0 20px rgba(139, 92, 246, 0.3);
 }
 
+/* Light mode */
+.light {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #e8e8ed;
+  --bg-card: #ffffff;
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --glow-blue: 0 0 20px rgba(79, 143, 255, 0.15);
+  --glow-purple: 0 0 20px rgba(139, 92, 246, 0.15);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -30,6 +41,7 @@ body {
   color: var(--text-primary);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   overflow-x: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
 /* Custom scrollbar */
@@ -49,11 +61,18 @@ body {
 .glow-purple { box-shadow: var(--glow-purple); }
 .glow-cyan { box-shadow: 0 0 20px rgba(6, 214, 160, 0.3); }
 
-/* Glass morphism */
+/* Glass morphism - dark mode default */
 .glass {
   background: rgba(26, 26, 62, 0.6);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Glass morphism - light mode */
+.light .glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* Canvas container */
@@ -66,4 +85,20 @@ body {
 .canvas-container canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  /* Make info panel scrollable on mobile */
+  .info-panel {
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Full width canvas on mobile */
+  .canvas-container {
+    min-height: 50vh;
+  }
 }

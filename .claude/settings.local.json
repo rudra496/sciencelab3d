@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(start:*)",
+      "Bash(cd:*)",
+      "Bash(taskkill /F /PID 10008)",
+      "Bash(timeout 3 bash -c \"echo ''Waiting for compilation...'' && sleep 3\")",
+      "Bash(npx tsx:*)",
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(for file:*)",
+      "Bash(do)",
+      "Bash(sed -i 's/import \\\\* as THREE from \"\"react\"\"/import * as THREE from \"\"three\"\"/g' \"$file\")",
+      "Bash(done)"
+    ]
+  }
+}
