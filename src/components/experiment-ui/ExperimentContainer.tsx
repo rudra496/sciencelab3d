@@ -18,11 +18,12 @@ export interface ExperimentContainerProps {
 }
 
 /**
- * Professional fullscreen experiment container
- * - 100vw × 100vh viewport coverage
- * - No scrollbars or overflow
- * - Proper Three.js resource disposal
- * - Responsive design
+ * PRODUCTION-LEVEL Experiment Container
+ * - True fullscreen: fixed inset-0, 100vw × 100vh
+ * - Fully responsive: mobile, tablet, desktop
+ * - Auto-resize on window resize
+ * - Proper z-index layering
+ * - Performance optimized
  */
 export function ExperimentContainer({
   children,
@@ -39,40 +40,50 @@ export function ExperimentContainer({
   const [showData, setShowData] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
 
   // Refs for cleanup
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  // Detect mobile with debounce
+  // Detect device type with debounce
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    const checkMobile = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        setIsMobile(window.innerWidth < 768);
-      }, 150);
+    const checkDevice = () => {
+      const width = window.innerWidth;
+      setIsMobile(width < 768);
+      setIsTablet(width >= 768 && width < 1024);
     };
 
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
+    checkDevice();
+
+    // Debounced resize handler
+    const handleResize = () => {
+      clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = setTimeout(checkDevice, 150);
+    };
+
+    window.addEventListener("resize", handleResize);
     return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener("resize", checkMobile);
+      clearTimeout(resizeTimeoutRef.current);
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
-  // Prevent body scroll when experiment is mounted
+  // Ensure no body scroll
   useEffect(() => {
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.inset = "0";
     return () => {
       document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.inset = "";
     };
   }, []);
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-gray-950">
-      {/* Main 3D Canvas - Fullscreen */}
+      {/* Main 3D Canvas - FULLSCREEN */}
       <Canvas
         ref={canvasRef}
         shadows
@@ -85,30 +96,34 @@ export function ExperimentContainer({
           toneMappingExposure: 1.2,
         }}
         dpr={[1, 2]}
-        className="w-full h-full"
+        className="w-full h-full block"
       >
-        {/* Camera */}
+        {/* Responsive Camera */}
         <PerspectiveCamera
           makeDefault
           position={cameraPosition}
-          fov={isMobile ? 50 : 45}
+          fov={isMobile ? 60 : isTablet ? 50 : 45}
           near={0.1}
           far={1000}
         />
 
-        {/* Controls */}
+        {/* Responsive Controls */}
         <OrbitControls
           makeDefault
           enableDamping
           dampingFactor={0.05}
-          minDistance={10}
-          maxDistance={200}
+          minDistance={isMobile ? 5 : 10}
+          maxDistance={isMobile ? 100 : 200}
           maxPolarAngle={Math.PI / 2 + 0.1}
           minPolarAngle={Math.PI / 6}
           enablePan={!isMobile}
           panSpeed={isMobile ? 0 : 0.5}
           rotateSpeed={isMobile ? 0.5 : 1}
           zoomSpeed={isMobile ? 0.8 : 1.2}
+          touches={{
+            ONE: THREE.TOUCH.ROTATE,
+            TWO: THREE.TOUCH.DOLLY_PAN,
+          }}
         />
 
         {/* Lighting */}
@@ -137,36 +152,26 @@ export function ExperimentContainer({
         )}
         <Environment preset="night" />
 
-        {/* Ground with shadows */}
+        {/* Ground */}
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
           <planeGeometry args={[200, 200]} />
-          <meshStandardMaterial
-            color={backgroundColor}
-            roughness={0.9}
-            metalness={0.1}
-          />
+          <meshStandardMaterial color={backgroundColor} roughness={0.9} metalness={0.1} />
         </mesh>
-        <ContactShadows
-          position={[0, 0.01, 0]}
-          opacity={0.4}
-          scale={100}
-          blur={2}
-          far={50}
-        />
+        <ContactShadows position={[0, 0.01, 0]} opacity={0.4} scale={100} blur={2} far={50} />
 
         {/* Experiment Scene */}
         <group>{children}</group>
       </Canvas>
 
-      {/* Header Bar - Floating */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 via-black/60 to-transparent p-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+      {/* Header Bar - Responsive */}
+      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 via-black/60 to-transparent p-3 sm:p-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto px-2 sm:px-0">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight truncate">
               {title}
             </h1>
             {description && (
-              <p className="text-sm text-gray-300 mt-1 hidden md:block">
+              <p className="text-xs sm:text-sm text-gray-300 mt-1 hidden sm:block">
                 {description}
               </p>
             )}
@@ -174,64 +179,72 @@ export function ExperimentContainer({
         </div>
       </div>
 
-      {/* Toggle Buttons - Top Right */}
-      <div className="absolute top-20 right-4 z-20 flex flex-col gap-2">
+      {/* Toggle Buttons - Responsive */}
+      <div className={`
+        absolute top-16 sm:top-20 right-2 sm:right-4 z-20
+        flex flex-row sm:flex-col gap-1 sm:gap-2
+        ${isMobile ? "flex-row" : "flex-col"}
+      `}>
         {controls && (
           <button
             onClick={() => setShowControls(!showControls)}
             className={`
-              px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200
+              px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showControls
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-500/50"
                 : "bg-gray-800/80 text-gray-300 hover:bg-gray-700/80 backdrop-blur-sm"}
             `}
+            aria-label={showControls ? "Hide controls" : "Show controls"}
           >
-            {showControls ? "✓ Controls" : "⚙ Controls"}
+            {showControls ? "✓" : "⚙"} <span className="hidden sm:inline">{showControls ? "Controls" : "Controls"}</span>
           </button>
         )}
         {dataPanel && (
           <button
             onClick={() => setShowData(!showData)}
             className={`
-              px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200
+              px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showData
                 ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50"
                 : "bg-gray-800/80 text-gray-300 hover:bg-gray-700/80 backdrop-blur-sm"}
             `}
+            aria-label={showData ? "Hide data" : "Show data"}
           >
-            {showData ? "✓ Data" : "📊 Data"}
+            {showData ? "✓" : "📊"} <span className="hidden sm:inline">{showData ? "Data" : "Data"}</span>
           </button>
         )}
         {details && (
           <button
             onClick={() => setShowDetails(!showDetails)}
             className={`
-              px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200
+              px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showDetails
                 ? "bg-green-600 text-white shadow-lg shadow-green-500/50"
                 : "bg-gray-800/80 text-gray-300 hover:bg-gray-700/80 backdrop-blur-sm"}
             `}
+            aria-label={showDetails ? "Hide info" : "Show info"}
           >
-            {showDetails ? "✓ Info" : "ℹ Info"}
+            {showDetails ? "✓" : "ℹ"} <span className="hidden sm:inline">{showDetails ? "Info" : "Info"}</span>
           </button>
         )}
       </div>
 
-      {/* Controls Panel - Slide in from right */}
+      {/* Controls Panel - Responsive Slide-in */}
       {controls && showControls && (
         <div className={`
-          absolute top-0 right-0 z-30 h-full w-80 md:w-96
+          absolute top-0 right-0 z-30 h-full w-full sm:w-80 md:w-96
           bg-gradient-to-l from-gray-900/95 to-gray-900/90 backdrop-blur-xl
           border-l border-purple-500/30 shadow-2xl
           transform transition-transform duration-300 ease-out overflow-y-auto
           ${showControls ? "translate-x-0" : "translate-x-full"}
         `}>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6 sticky top-0 bg-gray-900/95 backdrop-blur-sm py-2 -mx-6 px-6 border-b border-gray-700">
-              <h2 className="text-xl font-bold text-purple-400">Controls</h2>
+          <div className="p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-4 sm:mb-6 sticky top-0 bg-gray-900/95 backdrop-blur-sm py-2 -mx-4 sm:-mx-6 px-4 sm:px-6 border-b border-gray-700">
+              <h2 className="text-lg sm:text-xl font-bold text-purple-400">Controls</h2>
               <button
                 onClick={() => setShowControls(false)}
-                className="text-gray-400 hover:text-white transition-colors text-2xl"
+                className="text-gray-400 hover:text-white transition-colors text-xl sm:text-2xl p-1"
+                aria-label="Close controls"
               >
                 ✕
               </button>
@@ -241,62 +254,54 @@ export function ExperimentContainer({
         </div>
       )}
 
-      {/* Data Panel - Bottom Left */}
+      {/* Data Panel - Responsive Position */}
       {dataPanel && showData && (
         <div className={`
-          absolute bottom-4 left-4 z-20
+          absolute bottom-2 left-2 sm:bottom-4 sm:left-4 z-20
           bg-gradient-to-br from-gray-900/95 to-blue-900/90 backdrop-blur-xl
           border border-blue-500/30 rounded-xl shadow-2xl
-          p-4 max-w-sm transition-all duration-300
-          ${isMobile ? "max-h-48 overflow-y-auto" : ""}
+          p-2 sm:p-4 max-w-full sm:max-w-sm transition-all duration-300
+          ${isMobile ? "max-h-[40vh] overflow-y-auto" : ""}
         `}>
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-blue-500/30">
-            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-            <h3 className="text-sm font-semibold text-blue-400">Real-time Data</h3>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-blue-500/30">
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-400 animate-pulse" />
+            <h3 className="text-xs sm:text-sm font-semibold text-blue-400">Real-time Data</h3>
           </div>
           {dataPanel}
         </div>
       )}
 
-      {/* Details Panel - Modal */}
+      {/* Details Panel - Full-screen on mobile, Modal on desktop */}
       {details && showDetails && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center p-4">
+        <div className="absolute inset-0 z-40 flex items-center justify-center p-2 sm:p-4">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowDetails(false)}
           />
-          <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-6 border-b border-green-500/30 flex-shrink-0">
+          <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-3 sm:p-6 border-b border-green-500/30 flex-shrink-0">
               <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-green-400">Experiment Details</h2>
+                <h2 className="text-lg sm:text-2xl font-bold text-green-400">Experiment Details</h2>
                 <button
                   onClick={() => setShowDetails(false)}
-                  className="text-gray-400 hover:text-white text-2xl transition-colors"
+                  className="text-gray-400 hover:text-white text-xl sm:text-2xl transition-colors p-1"
+                  aria-label="Close details"
                 >
                   ✕
                 </button>
               </div>
             </div>
-            <div className="p-6 overflow-y-auto flex-1">
+            <div className="p-3 sm:p-6 overflow-y-auto flex-1 text-sm sm:text-base">
               {details}
             </div>
           </div>
         </div>
       )}
 
-      {/* Mobile Info Toggle */}
-      {isMobile && description && (
-        <button
-          onClick={() => setShowDetails(!showDetails)}
-          className="absolute top-20 left-4 z-20 px-3 py-2 bg-gray-800/80 text-white text-sm rounded-lg backdrop-blur-sm"
-        >
-          ℹ Info
-        </button>
-      )}
-
-      {/* Instructions hint */}
-      <div className="absolute bottom-4 right-4 z-10 text-xs text-gray-500 bg-black/50 px-3 py-2 rounded-lg backdrop-blur-sm">
-        🖱️ Drag to rotate • Scroll to zoom • Right-click to pan
+      {/* Instructions hint - Responsive */}
+      <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 z-10 text-[10px] sm:text-xs text-gray-500 bg-black/50 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg backdrop-blur-sm hidden xs:block">
+        <span className="hidden sm:inline">🖱️ Drag to rotate • Scroll to zoom • Right-click to pan</span>
+        <span className="sm:hidden">👆 Drag to rotate • Pinch to zoom</span>
       </div>
     </div>
   );
