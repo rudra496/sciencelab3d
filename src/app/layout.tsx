@@ -5,6 +5,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  userScalable: false,
+  interactiveWidget: "resizes-content",
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -77,7 +80,7 @@ export default function RootLayout({
         />
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
       </head>
-      <body className="m-0 p-0 overflow-hidden">{children}</body>
+      <body className="m-0 p-0">{children}</body>
     </html>
   );
 }

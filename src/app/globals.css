@@ -42,8 +42,7 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   transition: background 0.3s ease, color 0.3s ease;
   width: 100vw;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
 }
 
 /* Custom scrollbar */
@@ -87,6 +86,19 @@ body {
 .canvas-container canvas {
   width: 100% !important;
   height: 100% !important;
+  display: block !important;
+}
+
+/* Ensure fixed positioning elements work in split-screen */
+.fixed {
+  position: fixed !important;
+}
+
+/* Force canvas to fill viewport */
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
 }
 
 /* Responsive adjustments */

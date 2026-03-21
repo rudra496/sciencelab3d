@@ -1,9 +1,41 @@
 "use client";
 
 import { useState, useRef, useEffect, ReactNode, useCallback } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
+
+/**
+ * Component to handle canvas resize events
+ * Forces the renderer to update when window size changes
+ */
+function CanvasResizeHandler() {
+  const { gl, camera, size } = useThree();
+  
+  useEffect(() => {
+    const handleResize = () => {
+      // Force update renderer size
+      gl.setSize(window.innerWidth, window.innerHeight);
+      gl.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      
+      // Update camera aspect ratio
+      if (camera instanceof THREE.PerspectiveCamera) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    // Initial sizing
+    handleResize();
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [gl, camera]);
+  
+  return null;
+}
 
 export interface ExperimentContainerProps {
   children: ReactNode;
@@ -37,7 +69,7 @@ export function ExperimentContainer({
   backgroundColor = "#050510",
 }: ExperimentContainerProps) {
   const [showControls, setShowControls] = useState(false);
-  const [showData, setShowData] = useState(true);
+  const [showData, setShowData] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
@@ -45,6 +77,7 @@ export function ExperimentContainer({
   // Refs for cleanup
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Detect device type with debounce
   useEffect(() => {
@@ -69,6 +102,34 @@ export function ExperimentContainer({
     };
   }, []);
 
+  // Force canvas resize on container size changes (for split-screen windows)
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        
+        // Force canvas to resize
+        if (canvasRef.current) {
+          const canvas = canvasRef.current;
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+          
+          // Trigger Three.js resize
+          const event = new Event('resize');
+          window.dispatchEvent(event);
+        }
+      }
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   // Ensure no body scroll - only set overflow hidden
   // Note: Don't set position: fixed as it breaks mobile scroll behavior
   useEffect(() => {
@@ -80,22 +141,26 @@ export function ExperimentContainer({
   }, []);
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-gray-950">
-      {/* Main 3D Canvas - FULLSCREEN */}
+    <div ref={containerRef} className="fixed inset-0 w-screen h-screen overflow-hidden bg-gradient-to-br from-slate-100 via-blue-50 to-purple-50">
+      {/* Main 3D Canvas - FULLSCREEN with responsive sizing */}
       <Canvas
         ref={canvasRef}
         shadows
         gl={{
-          antialias: true,
+          antialias: !isMobile, // Disable antialiasing on mobile for performance
           alpha: true,
           powerPreference: "high-performance",
           outputColorSpace: THREE.SRGBColorSpace,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.2,
         }}
-        dpr={[1, 2]}
-        className="w-full h-full block"
+        dpr={isMobile ? 1 : [1, 2]} // Fixed DPR on mobile for consistency
+        className="w-full h-full block touch-none"
+        style={{ touchAction: 'none' }}
+        resize={{ debounce: 0, scroll: false }}
       >
+        {/* Handle canvas resize events */}
+        <CanvasResizeHandler />
         {/* Responsive Camera */}
         <PerspectiveCamera
           makeDefault
@@ -162,14 +227,14 @@ export function ExperimentContainer({
       </Canvas>
 
       {/* Header Bar - Responsive */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 via-black/60 to-transparent p-3 sm:p-4">
+      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-white/90 via-white/70 to-transparent p-3 sm:p-4 backdrop-blur-sm">
         <div className="flex items-center justify-between max-w-7xl mx-auto px-2 sm:px-0">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight truncate">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 tracking-tight truncate">
               {title}
             </h1>
             {description && (
-              <p className="text-xs sm:text-sm text-gray-300 mt-1 hidden sm:block">
+              <p className="text-xs sm:text-sm text-gray-600 mt-1 hidden sm:block">
                 {description}
               </p>
             )}
@@ -190,7 +255,7 @@ export function ExperimentContainer({
               px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showControls
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-500/50"
-                : "bg-gray-800/80 text-gray-300 hover:bg-gray-700/80 backdrop-blur-sm"}
+                : "bg-white/90 text-gray-700 hover:bg-white border border-gray-200 backdrop-blur-sm shadow-md"}
             `}
             aria-label={showControls ? "Hide controls" : "Show controls"}
           >
@@ -204,7 +269,7 @@ export function ExperimentContainer({
               px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showData
                 ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50"
-                : "bg-gray-800/80 text-gray-300 hover:bg-gray-700/80 backdrop-blur-sm"}
+                : "bg-white/90 text-gray-700 hover:bg-white border border-gray-200 backdrop-blur-sm shadow-md"}
             `}
             aria-label={showData ? "Hide data" : "Show data"}
           >
@@ -218,7 +283,7 @@ export function ExperimentContainer({
               px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showDetails
                 ? "bg-green-600 text-white shadow-lg shadow-green-500/50"
-                : "bg-gray-800/80 text-gray-300 hover:bg-gray-700/80 backdrop-blur-sm"}
+                : "bg-white/90 text-gray-700 hover:bg-white border border-gray-200 backdrop-blur-sm shadow-md"}
             `}
             aria-label={showDetails ? "Hide info" : "Show info"}
           >
@@ -235,7 +300,11 @@ export function ExperimentContainer({
           border-l border-purple-500/30 shadow-2xl
           transform transition-transform duration-300 ease-out overflow-y-auto
           ${showControls ? "translate-x-0" : "translate-x-full"}
-        `}>
+        `}
+        style={{
+          WebkitOverflowScrolling: 'touch',
+          maxHeight: '100vh'
+        }}>
           <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4 sm:mb-6 sticky top-0 bg-gray-900/95 backdrop-blur-sm py-2 -mx-4 sm:-mx-6 px-4 sm:px-6 border-b border-gray-700">
               <h2 className="text-lg sm:text-xl font-bold text-purple-400">Controls</h2>
@@ -269,30 +338,57 @@ export function ExperimentContainer({
         </div>
       )}
 
-      {/* Details Panel - Full-screen on mobile, Modal on desktop */}
-      {details && showDetails && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center p-2 sm:p-4">
-          <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowDetails(false)}
-          />
-          <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[95vh] sm:max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-3 sm:p-6 border-b border-green-500/30 flex-shrink-0">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg sm:text-2xl font-bold text-green-400">Experiment Details</h2>
-                <button
-                  onClick={() => setShowDetails(false)}
-                  className="text-gray-400 hover:text-white text-xl sm:text-2xl transition-colors p-1"
-                  aria-label="Close details"
-                >
-                  ✕
-                </button>
+      {/* Details Panel - Floating Draggable Window */}
+      {details && (
+        <div className={`
+          absolute z-40 bg-white border border-gray-200 rounded-xl shadow-2xl
+          ${showDetails ? "top-20 right-4 w-80 sm:w-96 max-h-[70vh]" : "top-20 right-4 w-12 h-12"}
+          transition-all duration-300 overflow-hidden
+        `}>
+          {/* Toggle Button (when minimized) */}
+          {!showDetails && (
+            <button
+              onClick={() => setShowDetails(true)}
+              className="w-full h-full flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all"
+              aria-label="Show details"
+            >
+              <span className="text-2xl">ℹ</span>
+            </button>
+          )}
+          
+          {/* Full Window (when expanded) */}
+          {showDetails && (
+            <>
+              {/* Header with gradient */}
+              <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-bold text-white">Experiment Details</h2>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowDetails(false)}
+                      className="text-white hover:text-gray-200 text-lg transition-colors p-1 bg-white/20 rounded-lg hover:bg-white/30"
+                      aria-label="Minimize details"
+                      title="Minimize"
+                    >
+                      −
+                    </button>
+                    <button
+                      onClick={() => setShowDetails(false)}
+                      className="text-white hover:text-gray-200 text-lg transition-colors p-1 bg-white/20 rounded-lg hover:bg-white/30"
+                      aria-label="Close details"
+                      title="Close"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="p-3 sm:p-6 overflow-y-auto flex-1 text-sm sm:text-base">
-              {details}
-            </div>
-          </div>
+              {/* Content with light background */}
+              <div className="p-3 sm:p-4 overflow-y-auto max-h-[calc(70vh-60px)] text-sm sm:text-base bg-gray-50 text-gray-800">
+                {details}
+              </div>
+            </>
+          )}
         </div>
       )}
 

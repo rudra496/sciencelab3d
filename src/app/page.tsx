@@ -217,6 +217,7 @@ export default function Home() {
   const [search, setSearch] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [favoritesCount, setFavoritesCount] = useState(0);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -225,6 +226,8 @@ export default function Home() {
         setTheme(savedTheme);
         document.documentElement.classList.toggle("light", savedTheme === "light");
       }
+      // Update favorites count
+      setFavoritesCount(getFavorites().length);
     }
   }, []);
 
@@ -264,6 +267,8 @@ export default function Home() {
     } else {
       localStorage.setItem("favorites", JSON.stringify([...favorites, id]));
     }
+    // Update favorites count
+    setFavoritesCount(getFavorites().length);
     // Force re-render by updating state
     setShowFavoritesOnly((prev) => prev);
   };
@@ -345,9 +350,9 @@ export default function Home() {
             >
               <span className="text-xl">⭐</span>
               Favorites
-              {getFavorites().length > 0 && (
+              {favoritesCount > 0 && (
                 <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                  {getFavorites().length}
+                  {favoritesCount}
                 </span>
               )}
             </button>
