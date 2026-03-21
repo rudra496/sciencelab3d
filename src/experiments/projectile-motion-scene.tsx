@@ -23,6 +23,8 @@ interface ProjectileMotionSceneProps {
   showTrail?: boolean;
   showPrediction?: boolean;
   resetTrigger?: number;
+  isPlaying?: boolean;
+  simulationSpeed?: number;
 }
 
 export interface ProjectileData {
@@ -58,6 +60,8 @@ export function ProjectileMotionSceneComponent({
   showTrail = true,
   showPrediction = true,
   resetTrigger,
+  isPlaying = true,
+  simulationSpeed = 1,
 }: ProjectileMotionSceneProps) {
   const projectileRef = useRef<THREE.Mesh>(null);
   const launcherGroupRef = useRef<THREE.Group>(null);
@@ -66,6 +70,8 @@ export function ProjectileMotionSceneComponent({
   // Simulation state
   const launchedRef = useRef(false);
   const timeRef = useRef(0);
+  const velocityRef = useRef({ x: 0, y: 0 });  // Track velocity for proper physics
+  const positionRef = useRef({ x: 0, y: 0 });  // Track position for proper integration
   const [isLaunched, setIsLaunched] = useState(false);
 
   // Trail data
@@ -123,6 +129,8 @@ export function ProjectileMotionSceneComponent({
       setTargetHit(false);
       trailPositions.fill(0);
       trailColors.fill(0);
+      velocityRef.current = { x: 0, y: 0 };
+      positionRef.current = { x: 0, y: 0 };
 
       if (projectileRef.current) {
         projectileRef.current.position.set(0, 0.5, 0);
@@ -159,38 +167,66 @@ export function ProjectileMotionSceneComponent({
     timeRef.current = 0;
     trailIndex.current = 0;
     setTargetHit(false);
+    // Initialize velocity with launch values
+    velocityRef.current = { x: vx, y: vy };
+    positionRef.current = { x: 0, y: 0 };
   };
 
+  // Auto-launch on resetTrigger change
+  useEffect(() => {
+    if (resetTrigger !== undefined && resetTrigger > 0) {
+      launch();
+    }
+  }, [resetTrigger]);
+
   useFrame((_, delta) => {
-    const dt = Math.min(delta, 0.016);
+    const dt = Math.min(delta, 0.016) * simulationSpeed;
 
     // Update launcher rotation
     if (launcherGroupRef.current) {
       launcherGroupRef.current.rotation.y = -angleRad;
     }
 
-    if (launchedRef.current) {
+    if (launchedRef.current && isPlaying) {
       timeRef.current += dt;
       const t = timeRef.current;
 
-      let x, y, vxCurrent, vyCurrent;
-
+      // Numerical integration with Euler method for proper physics
       if (airResistance) {
-        // Simplified air resistance model
-        const dragFactor = 1 - dragCoefficient * t;
-        const idealPos = calculateProjectilePosition(velocity, angleRad, t, gravity);
-        x = idealPos.x * dragFactor;
-        y = idealPos.y * dragFactor;
-        vxCurrent = vx * dragFactor;
-        vyCurrent = vy * dragFactor - gravity * t;
+        const v = velocityRef.current;
+        const p = positionRef.current;
+
+        // Calculate speed (magnitude of velocity)
+        const speed = Math.sqrt(v.x * v.x + v.y * v.y);
+
+        // Air resistance force: F_drag = -½ρCdAv² * (v/|v|)
+        // Simplified: a_drag = -(drag_coeff/m) * speed * v
+        const dragFactor = (dragCoefficient / mass) * speed;
+
+        // Acceleration due to gravity and drag
+        const ax = -dragFactor * v.x;
+        const ay = -gravity - dragFactor * v.y;
+
+        // Update velocity: v = v + a * dt
+        velocityRef.current.x = v.x + ax * dt;
+        velocityRef.current.y = v.y + ay * dt;
+
+        // Update position: p = p + v * dt
+        positionRef.current.x = p.x + velocityRef.current.x * dt;
+        positionRef.current.y = p.y + velocityRef.current.y * dt;
       } else {
+        // No air resistance - use analytical solution for accuracy
         const pos = calculateProjectilePosition(velocity, angleRad, t, gravity);
-        x = pos.x;
-        y = pos.y;
-        vxCurrent = vx;
-        vyCurrent = vy - gravity * t;
+        positionRef.current.x = pos.x;
+        positionRef.current.y = pos.y;
+        velocityRef.current.x = vx;
+        velocityRef.current.y = vy - gravity * t;
       }
 
+      const x = positionRef.current.x;
+      const y = positionRef.current.y;
+      const vxCurrent = velocityRef.current.x;
+      const vyCurrent = velocityRef.current.y;
       const clampedY = Math.max(0, y);
 
       if (projectileRef.current) {

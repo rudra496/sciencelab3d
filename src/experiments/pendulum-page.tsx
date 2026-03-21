@@ -7,20 +7,14 @@ import {
 } from "@/experiments/pendulum-scene";
 import {
   ExperimentContainer,
-  ControlPanel,
   ControlGroup,
   ControlSlider,
   DataGrid,
   EnergyBar,
-  DetailsModal,
-  DetailsSection,
-  DetailsFormulaList,
-  DetailsButton,
 } from "@/components/experiment-ui";
 
 export default function PendulumExperimentPage() {
   const [data, setData] = useState<PendulumData | null>(null);
-  const [showDetails, setShowDetails] = useState(false);
 
   // Simulation controls
   const [isPlaying, setIsPlaying] = useState(true);
@@ -37,17 +31,66 @@ export default function PendulumExperimentPage() {
   const [showVectors, setShowVectors] = useState(true);
 
   // Handlers
-  const handlePlayPause = (playing: boolean) => setIsPlaying(playing);
+  const handlePlayPause = () => setIsPlaying(!isPlaying);
   const handleReset = () => {
     setResetTrigger((prev) => prev + 1);
     setIsPlaying(true);
     setSimulationSpeed(1);
   };
-  const handleSpeedChange = (speed: number) => setSimulationSpeed(speed);
 
-  // Custom controls for ControlPanel
-  const customControls = (
-    <>
+  // Controls panel - unified in ExperimentContainer
+  const controls = (
+    <div className="space-y-5">
+      {/* Playback Controls */}
+      <ControlGroup title="Simulation Controls">
+        <div className="flex gap-2">
+          <button
+            onClick={handlePlayPause}
+            className={`
+              flex-1 py-3 rounded-lg font-semibold transition-all shadow-lg
+              ${isPlaying
+                ? "bg-orange-600 hover:bg-orange-500 text-white shadow-orange-500/30"
+                : "bg-green-600 hover:bg-green-500 text-white shadow-green-500/30"
+              }
+            `}
+          >
+            {isPlaying ? "⏸ Pause" : "▶ Play"}
+          </button>
+          <button
+            onClick={handleReset}
+            className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-semibold rounded-lg transition-all shadow-lg"
+          >
+            🔄 Reset
+          </button>
+        </div>
+
+        {/* Speed Control */}
+        <div className="mt-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400">Simulation Speed</span>
+            <span className="font-mono text-purple-400">
+              {simulationSpeed.toFixed(1)}x
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.1"
+            max="3"
+            step="0.1"
+            value={simulationSpeed}
+            onChange={(e) => setSimulationSpeed(parseFloat(e.target.value))}
+            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer touch-none"
+            style={{ accentColor: "#8b5cf6" }}
+          />
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>0.1x</span>
+            <span>1x</span>
+            <span>3x</span>
+          </div>
+        </div>
+      </ControlGroup>
+
+      {/* Physics Parameters */}
       <ControlGroup title="Physics Parameters">
         <ControlSlider
           label="Length (L)"
@@ -106,8 +149,9 @@ export default function PendulumExperimentPage() {
         />
       </ControlGroup>
 
+      {/* Display Options */}
       <ControlGroup title="Display Options">
-        <label className="flex items-center justify-between text-xs sm:text-sm text-gray-300 cursor-pointer py-2 px-2 sm:px-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+        <label className="flex items-center justify-between text-sm text-gray-300 cursor-pointer py-2 px-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
           <span>Show Trail</span>
           <input
             type="checkbox"
@@ -116,7 +160,7 @@ export default function PendulumExperimentPage() {
             className="w-4 h-4 rounded accent-purple-500"
           />
         </label>
-        <label className="flex items-center justify-between text-xs sm:text-sm text-gray-300 cursor-pointer py-2 px-2 sm:px-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+        <label className="flex items-center justify-between text-sm text-gray-300 cursor-pointer py-2 px-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
           <span>Show Vectors</span>
           <input
             type="checkbox"
@@ -126,7 +170,7 @@ export default function PendulumExperimentPage() {
           />
         </label>
       </ControlGroup>
-    </>
+    </div>
   );
 
   // Data panel
@@ -152,17 +196,19 @@ export default function PendulumExperimentPage() {
     </>
   ) : null;
 
-  // Details content
-  const detailsContent = (
-    <>
-      <DetailsSection title="About Simple Pendulum" icon="🎯">
+  // Details panel content
+  const details = (
+    <div className="space-y-6 text-gray-300">
+      <section>
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">About Simple Pendulum</h3>
         <p className="text-sm leading-relaxed">
           A simple pendulum consists of a mass (bob) suspended from a fixed point by a string.
           When displaced from equilibrium and released, it oscillates back and forth under gravity.
         </p>
-      </DetailsSection>
+      </section>
 
-      <DetailsSection title="Key Physics Concepts" icon="💡">
+      <section>
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">Key Physics Concepts</h3>
         <ul className="space-y-2 text-sm">
           <li className="flex gap-2">
             <span className="text-purple-400">•</span>
@@ -181,94 +227,69 @@ export default function PendulumExperimentPage() {
             <span><strong className="text-white">Energy Conservation:</strong> KE + PE = constant (without damping)</span>
           </li>
         </ul>
-      </DetailsSection>
+      </section>
 
-      <DetailsSection title="Formulas" icon="📐">
-        <DetailsFormulaList
-          formulas={[
-            { formula: "T = 2π√(L/g)", label: "Period", color: "text-purple-300" },
-            { formula: "f = 1/T = (1/2π)√(g/L)", label: "Frequency", color: "text-pink-300" },
-            { formula: "ω = √(g/L)", label: "Angular frequency", color: "text-green-300" },
-            { formula: "KE = ½mv² = ½mL²(dθ/dt)²", label: "Kinetic energy", color: "text-blue-300" },
-            { formula: "PE = mgh = mgL(1 - cosθ)", label: "Potential energy", color: "text-yellow-300" },
-            { formula: "E = KE + PE", label: "Total energy", color: "text-green-300" },
-          ]}
-        />
-      </DetailsSection>
+      <section>
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">Formulas</h3>
+        <div className="bg-gray-800/50 rounded-lg p-4 font-mono text-sm space-y-2">
+          <div className="text-purple-300">T = 2π√(L/g)</div>
+          <div className="text-pink-300">f = 1/T = (1/2π)√(g/L)</div>
+          <div className="text-green-300">ω = √(g/L)</div>
+          <div className="text-blue-300">KE = ½mv² = ½mL²(dθ/dt)²</div>
+          <div className="text-yellow-300">PE = mgh = mgL(1 - cosθ)</div>
+          <div className="text-green-300">E = KE + PE</div>
+        </div>
+      </section>
 
-      <DetailsSection title="Real-World Applications" icon="🔬">
+      <section>
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">Real-World Applications</h3>
         <ul className="space-y-2 text-sm">
           <li>• <strong className="text-white">Grandfather clocks</strong> — Timekeeping</li>
           <li>• <strong className="text-white">Seismographs</strong> — Earthquake detection</li>
           <li>• <strong className="text-white">Metronomes</strong> — Musical timing</li>
           <li>• <strong className="text-white">Foucault pendulum</strong> — Demonstrates Earth's rotation</li>
         </ul>
-      </DetailsSection>
+      </section>
 
-      <DetailsSection title="How to Use" icon="🎮">
+      <section>
+        <h3 className="text-lg font-semibold text-purple-400 mb-2">How to Use</h3>
         <ul className="space-y-2 text-sm">
           <li>• Adjust <strong className="text-purple-400">Length</strong> to see period change</li>
           <li>• Change <strong className="text-pink-400">Gravity</strong> for different planets</li>
           <li>• <strong className="text-green-400">Mass</strong> doesn't affect period (surprisingly!)</li>
-          <li>• Use <strong className="text-blue-400">Damping</strong> to add air resistance</li>
-          <li>• <strong className="text-orange-400">Play/Pause</strong> to freeze simulation</li>
+          <li>• Use <strong className="text-orange-400">Damping</strong> to add air resistance</li>
+          <li>• <strong className="text-blue-400">Play/Pause</strong> to freeze simulation</li>
           <li>• Adjust <strong className="text-yellow-400">Speed</strong> for slow-motion</li>
         </ul>
-      </DetailsSection>
-    </>
+      </section>
+    </div>
   );
 
   return (
-    <>
-      <ExperimentContainer
-        title="Simple Pendulum"
-        description="Explore simple harmonic motion with a realistic pendulum simulation"
-        cameraPosition={[40, 30, 40]}
-        backgroundColor="#050510"
-        controls={null}
-        dataPanel={dataPanel}
-        details={detailsContent}
-      >
-        <PendulumSceneComponent
-          onDataChange={setData}
-          length={length}
-          gravity={gravity}
-          mass={mass}
-          damping={damping}
-          initialAngle={(initialAngle * Math.PI) / 180}
-          showTrail={showTrail}
-          showString={true}
-          showVectors={showVectors}
-          isPlaying={isPlaying}
-          simulationSpeed={simulationSpeed}
-          onReset={handleReset}
-          resetTrigger={resetTrigger}
-        />
-      </ExperimentContainer>
-
-      {/* Control Panel */}
-      <ControlPanel
-        title="Pendulum Controls"
-        onPlayPause={handlePlayPause}
+    <ExperimentContainer
+      title="Simple Pendulum"
+      description="Explore simple harmonic motion with a realistic pendulum simulation"
+      cameraPosition={[40, 30, 40]}
+      backgroundColor="#050510"
+      controls={controls}
+      dataPanel={dataPanel}
+      details={details}
+    >
+      <PendulumSceneComponent
+        onDataChange={setData}
+        length={length}
+        gravity={gravity}
+        mass={mass}
+        damping={damping}
+        initialAngle={(initialAngle * Math.PI) / 180}
+        showTrail={showTrail}
+        showString={true}
+        showVectors={showVectors}
+        isPlaying={isPlaying}
+        simulationSpeed={simulationSpeed}
         onReset={handleReset}
-        onSpeedChange={handleSpeedChange}
-        defaultPlaying={isPlaying}
-        defaultSpeed={simulationSpeed}
-      >
-        {customControls}
-      </ControlPanel>
-
-      {/* Details Button */}
-      <DetailsButton onClick={() => setShowDetails(true)} position="bottom-right" />
-
-      {/* Details Modal */}
-      <DetailsModal
-        isOpen={showDetails}
-        onClose={() => setShowDetails(false)}
-        title="Simple Pendulum - Experiment Details"
-      >
-        {detailsContent}
-      </DetailsModal>
-    </>
+        resetTrigger={resetTrigger}
+      />
+    </ExperimentContainer>
   );
 }

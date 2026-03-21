@@ -32,17 +32,22 @@ export default function ProjectileMotionPage() {
   });
   const [resetTrigger, setResetTrigger] = useState(0);
   const [launched, setLaunched] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [simulationSpeed, setSimulationSpeed] = useState(1);
 
   const handleLaunch = () => {
     if (!launched) {
       setLaunched(true);
       setResetTrigger((prev) => prev + 1);
+      setIsPlaying(true);
     }
   };
 
   const handleReset = () => {
     setLaunched(false);
     setResetTrigger((prev) => prev + 1);
+    setIsPlaying(true);
+    setSimulationSpeed(1);
   };
 
   const updateConfig = (key: keyof ProjectileConfig, value: any) => {
@@ -52,6 +57,7 @@ export default function ProjectileMotionPage() {
   // Controls panel
   const controls = (
     <div className="space-y-5">
+      {/* Launch Controls */}
       <ControlGroup title="Launch Controls">
         <div className="flex gap-2">
           <button
@@ -68,8 +74,50 @@ export default function ProjectileMotionPage() {
             🔄 Reset
           </button>
         </div>
+
+        {/* Play/Pause for launched projectile */}
+        {launched && (
+          <button
+            onClick={() => setIsPlaying(!isPlaying)}
+            className={`
+              w-full mt-2 py-3 rounded-lg font-semibold transition-all shadow-lg
+              ${isPlaying
+                ? "bg-orange-600 hover:bg-orange-500 text-white shadow-orange-500/30"
+                : "bg-green-600 hover:bg-green-500 text-white shadow-green-500/30"
+              }
+            `}
+          >
+            {isPlaying ? "⏸ Pause Simulation" : "▶ Resume Simulation"}
+          </button>
+        )}
+
+        {/* Speed Control */}
+        <div className="mt-4 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400">Simulation Speed</span>
+            <span className="font-mono text-purple-400">
+              {simulationSpeed.toFixed(1)}x
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0.1"
+            max="3"
+            step="0.1"
+            value={simulationSpeed}
+            onChange={(e) => setSimulationSpeed(parseFloat(e.target.value))}
+            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer touch-none"
+            style={{ accentColor: "#8b5cf6" }}
+          />
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>0.1x</span>
+            <span>1x</span>
+            <span>3x</span>
+          </div>
+        </div>
       </ControlGroup>
 
+      {/* Physics Parameters */}
       <ControlGroup title="Physics Parameters">
         <ControlSlider
           label="Velocity (v₀)"
@@ -116,6 +164,7 @@ export default function ProjectileMotionPage() {
         />
       </ControlGroup>
 
+      {/* Environment */}
       <ControlGroup title="Environment">
         <div className="space-y-3">
           <label className="flex items-center justify-between text-sm text-gray-300 cursor-pointer">
@@ -158,6 +207,7 @@ export default function ProjectileMotionPage() {
         </div>
       </ControlGroup>
 
+      {/* Display Options */}
       <ControlGroup title="Display Options">
         <div className="space-y-3">
           <label className="flex items-center justify-between text-sm text-gray-300 cursor-pointer">
@@ -294,6 +344,8 @@ export default function ProjectileMotionPage() {
         showTrail={config.showTrail}
         showPrediction={config.showPrediction}
         resetTrigger={resetTrigger}
+        isPlaying={isPlaying}
+        simulationSpeed={simulationSpeed}
       />
     </ExperimentContainer>
   );

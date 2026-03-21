@@ -97,8 +97,15 @@ export interface DataGridProps {
  * Grid layout for data display
  */
 export function DataGrid({ data, columns = 1 }: DataGridProps) {
+  // Use a lookup object to avoid dynamic Tailwind classes
+  const colClasses: Record<number, string> = {
+    1: "grid-cols-1",
+    2: "grid-cols-2",
+    3: "grid-cols-3",
+  };
+
   return (
-    <div className={`grid grid-cols-${columns} gap-2`}>
+    <div className={`grid ${colClasses[columns] || "grid-cols-1"} gap-2`}>
       {Object.entries(data).map(([key, item]) => (
         <div
           key={key}

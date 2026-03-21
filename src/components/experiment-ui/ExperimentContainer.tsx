@@ -69,15 +69,13 @@ export function ExperimentContainer({
     };
   }, []);
 
-  // Ensure no body scroll
+  // Ensure no body scroll - only set overflow hidden
+  // Note: Don't set position: fixed as it breaks mobile scroll behavior
   useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.inset = "0";
     return () => {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.inset = "";
+      document.body.style.overflow = originalOverflow;
     };
   }, []);
 
