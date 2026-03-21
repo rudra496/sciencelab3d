@@ -312,7 +312,7 @@ export function WaveInterferenceSceneComponent({
             <ringGeometry args={[physicsParams.wavelength * (i + 1), physicsParams.wavelength * (i + 1) + 0.05, 64]} />
             <meshBasicMaterial color="#8b5cf6" transparent opacity={0.15} />
           </mesh>
-        </mesh>
+        </group>
       ))}
 
       {/* Wavelength circles from source 2 */}
@@ -322,7 +322,7 @@ export function WaveInterferenceSceneComponent({
             <ringGeometry args={[physicsParams.wavelength * (i + 1), physicsParams.wavelength * (i + 1) + 0.05, 64]} />
             <meshBasicMaterial color="#ec4899" transparent opacity={0.15} />
           </mesh>
-        </mesh>
+        </group>
       ))}
 
       {/* Basin/Pool edges */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback } from "react";
+import { ReactNode, useCallback, useEffect } from "react";
 
 export interface DetailsModalProps {
   isOpen: boolean;
@@ -15,26 +15,26 @@ export interface DetailsModalProps {
  * - Shows explanation, formulas, applications
  * - Responsive and accessible
  */
-export function DetailsModal({ isOpen, onClose, title, children }: DetailsModalProps) {
+export function DetailsModal({ isOpen, onClose, title, children }: DetailsModalProps): ReactNode {
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
   }, [onClose]);
 
-  const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape" && isOpen) {
-      onClose();
-    }
-  }, [isOpen, onClose]);
-
   // Add keyboard listener
-  if (isOpen) {
-    if (typeof window !== "undefined") {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
       window.addEventListener("keydown", handleEscape);
       return () => window.removeEventListener("keydown", handleEscape);
     }
-  }
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
