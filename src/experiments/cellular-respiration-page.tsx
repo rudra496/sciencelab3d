@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
-  SimulationController,
   FloatingControlPanel,
   DataPanel,
 } from '@/components/experiment-ui';
@@ -12,21 +10,22 @@ import { ControlGroup, ControlSlider, DataGrid } from '@/components/experiment-u
 import CellularRespirationSceneComponent, { CellularRespirationData } from './cellular-respiration-scene';
 
 export default function CellularRespirationPage() {
-  const router = useRouter();
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [showData, setShowData] = useState(false);
 
-  const [glucoseLevel, setGlucoseLevel] = useState(1);
-  const [oxygenLevel, setOxygenLevel] = useState(1);
   const [stage, setStage] = useState(0);
+  const [showLabels, setShowLabels] = useState(true);
 
   const [respirationData, setRespirationData] = useState<CellularRespirationData>({
-    atpProduced: 0,
     stage: 'Glycolysis',
-    efficiency: 100,
+    atpProduced: 0,
+    glucoseRemaining: 100,
+    co2Produced: 0,
+    nadhCount: 0,
+    description: 'Glucose splits into 2 pyruvate molecules in the cytoplasm.',
   });
 
   const handlePlayPause = useCallback(() => {
@@ -35,8 +34,6 @@ export default function CellularRespirationPage() {
 
   const handleReset = useCallback(() => {
     setResetTrigger((t) => t + 1);
-    setGlucoseLevel(1);
-    setOxygenLevel(1);
     setStage(0);
   }, []);
 
@@ -51,61 +48,70 @@ export default function CellularRespirationPage() {
   const parameterControls = useMemo(
     () => (
       <>
-        <ControlGroup title="Inputs">
-          <ControlSlider
-            label="Glucose"
-            value={glucoseLevel}
-            min={0}
-            max={2}
-            step={0.1}
-            onChange={setGlucoseLevel}
-              />
-          <ControlSlider
-            label="Oxygen"
-            value={oxygenLevel}
-            min={0}
-            max={2}
-            step={0.1}
-            onChange={setOxygenLevel}
-              />
-        </ControlGroup>
-
-        <ControlGroup title="Stage">
-          {['Glycolysis', 'Krebs Cycle', 'ETC'].map((s, i) => (
+        <ControlGroup title="Stages">
+          {['Glycolysis', 'Krebs Cycle', 'Electron Transport Chain'].map((s, i) => (
             <button
               key={s}
               onClick={() => setStage(i)}
               className={`w-full px-3 py-2 rounded text-sm transition-colors mb-2 ${
                 stage === i
-                  ? 'bg-[#ef4444] text-white'
+                  ? 'bg-[#ef4444] text-white font-bold'
                   : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
-              {s}
+              {i + 1}. {s}
             </button>
           ))}
         </ControlGroup>
 
-        <button
-          onClick={() => router.push('/experiments/cellular-respiration/details')}
-          className="w-full mt-4 px-4 py-2 bg-[#ef4444]/20 hover:bg-[#ef4444]/30 text-[#ef4444] rounded-lg border border-[#ef4444]/50 transition-colors text-sm font-medium"
-        >
-          View Details
-        </button>
+        <ControlGroup title="Display">
+          <label className="flex items-center gap-2 text-gray-300 text-sm cursor-pointer mb-2">
+            <input
+              type="checkbox"
+              checked={showLabels}
+              onChange={(e) => setShowLabels(e.target.checked)}
+              className="w-4 h-4 rounded"
+            />
+            Show Labels
+          </label>
+        </ControlGroup>
+
+        <ControlGroup title="Stage Breakdown">
+          <div className="bg-gray-800/50 rounded-lg p-3 text-xs space-y-2">
+            <div className="flex justify-between text-gray-400">
+              <span>Glycolysis:</span>
+              <span className="text-blue-400">2 ATP</span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>Krebs Cycle:</span>
+              <span className="text-orange-400">2 ATP</span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>ETC:</span>
+              <span className="text-cyan-400">34 ATP</span>
+            </div>
+            <div className="border-t border-gray-700 pt-2 flex justify-between text-gray-300 font-bold">
+              <span>Total:</span>
+              <span className="text-green-400">38 ATP</span>
+            </div>
+          </div>
+        </ControlGroup>
       </>
     ),
-    [glucoseLevel, oxygenLevel, stage, router]
+    [stage, showLabels]
   );
 
   const dataContent = useMemo(
     () => (
       <DataGrid
         data={{
-          stage: { value: 0, unit: respirationData.stage, color: "#ef4444", decimals: 0 },
-          atpProduced: { value: respirationData.atpProduced, unit: "/38", color: "#f97316", decimals: 0 },
-          efficiency: { value: respirationData.efficiency, unit: "%", color: "#22c55e", decimals: 0 },
+          stage: { value: 0, unit: respirationData.stage, color: '#ef4444', decimals: 0 },
+          atpProduced: { value: respirationData.atpProduced, unit: '/38', color: '#22c55e', decimals: 0 },
+          glucose: { value: respirationData.glucoseRemaining, unit: '%', color: '#3b82f6', decimals: 0 },
+          co2: { value: respirationData.co2Produced, unit: 'molecules', color: '#6b7280', decimals: 0 },
+          nadh: { value: respirationData.nadhCount, unit: 'NADH', color: '#f59e0b', decimals: 0 },
         }}
-        columns={1}
+        columns={2}
       />
     ),
     [respirationData]
@@ -124,36 +130,31 @@ export default function CellularRespirationPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="Cellular Respiration"
-        description="Explore ATP production in mitochondria"
-        cameraPosition={[0, 0, 10]}
+        description="ATP production: Glycolysis → Krebs Cycle → Electron Transport Chain"
+        cameraPosition={[0, 0, 12]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={dataPanel}
+        simulationBar={{
+          isPlaying,
+          onPlayPause: handlePlayPause,
+          onReset: handleReset,
+          speed: simulationSpeed,
+          onSpeedChange: handleSpeedChange,
+        }}
       >
         <CellularRespirationSceneComponent
           onDataChange={handleDataChange}
           isPlaying={isPlaying}
           simulationSpeed={simulationSpeed}
           resetTrigger={resetTrigger}
-          glucoseLevel={glucoseLevel}
-          oxygenLevel={oxygenLevel}
           stage={stage}
+          showLabels={showLabels}
         />
       </ExperimentContainer>
 
-      <SimulationController
-        isPlaying={isPlaying}
-        onPlayPause={handlePlayPause}
-        onReset={handleReset}
-        speed={simulationSpeed}
-        onSpeedChange={handleSpeedChange}
-        timeElapsed={0}
-      />
-
       {showControls && (
-        <FloatingControlPanel
-            initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
-        >
+        <FloatingControlPanel initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}>
           {parameterControls}
         </FloatingControlPanel>
       )}

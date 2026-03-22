@@ -7,43 +7,67 @@ import * as THREE from "three";
 
 export interface TrigonometryData {
   angle: number;
+  radians: number;
   sin: number;
   cos: number;
   tan: number;
-  radianValue: number;
+  exactValue: string;
+  quadrant: string;
 }
 
 export interface TrigonometrySceneProps {
   angle: number;
-  showUnitCircle: boolean;
-  showWave: boolean;
+  useRadians: boolean;
+  showSin: boolean;
+  showCos: boolean;
+  showTan: boolean;
+  showWaves: boolean;
   animationSpeed: number;
   isPlaying: boolean;
   onDataChange?: (data: TrigonometryData) => void;
 }
 
-/**
- * Trigonometry scene component
- * Visualizes unit circle, sin/cos/tan relationships, and wave generation
- */
+// Special angles with exact values
+const SPECIAL_ANGLES: Record<number, { sin: string; cos: string; tan: string }> = {
+  0: { sin: "0", cos: "1", tan: "0" },
+  30: { sin: "1/2", cos: "√3/2", tan: "1/√3" },
+  45: { sin: "√2/2", cos: "√2/2", tan: "1" },
+  60: { sin: "√3/2", cos: "1/2", tan: "√3" },
+  90: { sin: "1", cos: "0", tan: "undefined" },
+  120: { sin: "√3/2", cos: "-1/2", tan: "-√3" },
+  135: { sin: "√2/2", cos: "-√2/2", tan: "-1" },
+  150: { sin: "1/2", cos: "-√3/2", tan: "-1/√3" },
+  180: { sin: "0", cos: "-1", tan: "0" },
+  210: { sin: "-1/2", cos: "-√3/2", tan: "1/√3" },
+  225: { sin: "-√2/2", cos: "-√2/2", tan: "1" },
+  240: { sin: "-√3/2", cos: "-1/2", tan: "√3" },
+  270: { sin: "-1", cos: "0", tan: "undefined" },
+  300: { sin: "-√3/2", cos: "1/2", tan: "-√3" },
+  315: { sin: "-√2/2", cos: "√2/2", tan: "-1" },
+  330: { sin: "-1/2", cos: "√3/2", tan: "-1/√3" },
+  360: { sin: "0", cos: "1", tan: "0" },
+};
+
 export function TrigonometrySceneComponent({
   angle,
-  showUnitCircle,
-  showWave,
+  useRadians,
+  showSin,
+  showCos,
+  showTan,
+  showWaves,
   animationSpeed,
   isPlaying,
-  onDataChange
+  onDataChange,
 }: TrigonometrySceneProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const waveRef = useRef<THREE.Group>(null);
   const dataRef = useRef({
     frameCount: 0,
     time: 0,
-    currentAngle: angle
+    currentAngle: angle,
   });
   const [, forceUpdate] = useState({});
 
-  // Generate unit circle points
+  // Unit circle
   const circlePoints = useMemo(() => {
     const pts: [number, number, number][] = [];
     for (let i = 0; i <= 120; i++) {
@@ -53,52 +77,90 @@ export function TrigonometrySceneComponent({
     return pts;
   }, []);
 
-  // Static axes
-  const xAxisPoints = useMemo(() => [[-4, 0, 0], [6, 0, 0]] as [number, number, number][], []);
-  const yAxisPoints = useMemo(() => [[0, -3, 0], [0, 3, 0]] as [number, number, number][], []);
+  // Special angle markers
+  const specialAngleMarkers = useMemo(() => {
+    const markers: { position: [number, number, number]; angle: number }[] = [];
+    [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360].forEach((a) => {
+      const rad = (a * Math.PI) / 180;
+      markers.push({
+        position: [Math.cos(rad) * 1.15, Math.sin(rad) * 1.15, 0],
+        angle: a,
+      });
+    });
+    return markers;
+  }, []);
 
-  // Generate multiple trig waves
-  const sineWavePoints = useMemo(() => {
+  // Wave functions
+  const sinWavePoints = useMemo(() => {
     const pts: [number, number, number][] = [];
     for (let i = 0; i <= 200; i++) {
-      const x = (i - 100) * 0.04;
+      const x = (i - 100) * 0.06;
       pts.push([x, Math.sin(x), 0]);
     }
     return pts;
   }, []);
 
-  const cosineWavePoints = useMemo(() => {
+  const cosWavePoints = useMemo(() => {
     const pts: [number, number, number][] = [];
     for (let i = 0; i <= 200; i++) {
-      const x = (i - 100) * 0.04;
+      const x = (i - 100) * 0.06;
       pts.push([x, Math.cos(x), 0]);
     }
     return pts;
   }, []);
 
-  const tangentWavePoints = useMemo(() => {
+  const tanWavePoints = useMemo(() => {
     const pts: [number, number, number][] = [];
     for (let i = 0; i <= 200; i++) {
-      const x = (i - 100) * 0.04;
+      const x = (i - 100) * 0.06;
       const tan = Math.tan(x);
-      // Clamp tan values for visualization
-      const clampedTan = Math.max(-2.5, Math.min(2.5, tan));
+      const clampedTan = Math.max(-3, Math.min(3, tan));
       pts.push([x, clampedTan, 0]);
     }
     return pts;
   }, []);
 
+  // Axis lines
+  const xAxisPoints = useMemo(() => [[-5, 0, 0], [5, 0, 0]] as [number, number, number][], []);
+  const yAxisPoints = useMemo(() => [[0, -3, 0], [0, 3, 0]] as [number, number, number][], []);
+
+  const getQuadrant = (ang: number) => {
+    const normalized = ((ang % 360) + 360) % 360;
+    if (normalized === 0 || normalized === 180 || normalized === 360) return "On Axis";
+    if (normalized === 90 || normalized === 270) return "On Axis";
+    if (normalized < 90) return "I";
+    if (normalized < 180) return "II";
+    if (normalized < 270) return "III";
+    return "IV";
+  };
+
+  const getExactValue = useCallback((ang: number) => {
+    const nearest = [0, 30, 45, 60, 90, 120, 135, 150, 180, 210, 225, 240, 270, 300, 315, 330, 360].reduce(
+      (prev, curr) => (Math.abs(curr - ang) < Math.abs(prev - ang) ? curr : prev)
+    );
+    if (Math.abs(nearest - ang) < 2) {
+      return `${nearest}° (${SPECIAL_ANGLES[nearest].sin}, ${SPECIAL_ANGLES[nearest].cos})`;
+    }
+    return "";
+  }, []);
+
   const updateReactState = useCallback(() => {
     const rad = (dataRef.current.currentAngle * Math.PI) / 180;
+    const sinVal = Math.sin(rad);
+    const cosVal = Math.cos(rad);
+    const tanVal = Math.tan(rad);
+
     onDataChange?.({
       angle: dataRef.current.currentAngle,
-      sin: Math.sin(rad),
-      cos: Math.cos(rad),
-      tan: Math.tan(rad),
-      radianValue: rad,
+      radians: rad,
+      sin: sinVal,
+      cos: cosVal,
+      tan: tanVal,
+      exactValue: getExactValue(dataRef.current.currentAngle),
+      quadrant: getQuadrant(dataRef.current.currentAngle),
     });
     forceUpdate({});
-  }, [onDataChange]);
+  }, [onDataChange, getExactValue]);
 
   useFrame((_, delta) => {
     if (!isPlaying) return;
@@ -107,183 +169,185 @@ export function TrigonometrySceneComponent({
     data.time += delta;
     data.frameCount++;
 
-    // Animate angle automatically when playing
-    data.currentAngle = (data.currentAngle + delta * animationSpeed * 30) % 360;
+    // Auto-animate angle
+    data.currentAngle = (data.currentAngle + delta * animationSpeed * 15) % 360;
 
     if (groupRef.current) {
-      // Subtle camera rotation effect
-      groupRef.current.rotation.z = Math.sin(data.time * 0.1) * 0.05;
+      groupRef.current.rotation.z = Math.sin(data.time * 0.1) * 0.02;
     }
 
-    if (waveRef.current) {
-      // Animate wave phase
-      waveRef.current.position.x = Math.sin(data.time * animationSpeed * 0.5) * 0.3;
-    }
-
-    // Update React state every 8 frames
     if (data.frameCount % 8 === 0) {
       updateReactState();
     }
   });
 
-  // Override with manual angle changes
+  // Override with manual angle
   dataRef.current.currentAngle = angle;
 
   const rad = (angle * Math.PI) / 180;
   const cosX = Math.cos(rad);
   const sinY = Math.sin(rad);
+  const tanVal = Math.tan(rad);
 
-  // Tan line (extend to show tangent)
-  const tanLinePoints: [number, number, number][] = [[1, 0, 0]];
-  const tanValue = Math.tan(rad);
-  if (Math.abs(tanValue) < 10) {
-    tanLinePoints.push([1, tanValue, 0]);
-  }
-
-  // Arc showing angle
+  // Angle arc
   const arcPoints = useMemo(() => {
     const pts: [number, number, number][] = [];
     const steps = 30;
     for (let i = 0; i <= steps; i++) {
       const theta = (i / steps) * rad;
-      pts.push([0.3 * Math.cos(theta), 0.3 * Math.sin(theta), 0]);
+      pts.push([0.4 * Math.cos(theta), 0.4 * Math.sin(theta), 0]);
     }
     return pts;
   }, [rad]);
 
-  // Animated point on waves
-  const waveX = ((angle / 360) * Math.PI * 2) % (Math.PI * 2);
-  const waveOffset = (waveX - Math.PI) * 2;
+  // Tangent line from (1, 0)
+  const tanLinePoints: [number, number, number][] = [[1, 0, 0]];
+  if (Math.abs(tanVal) < 10 && Math.abs(cosX) > 0.01) {
+    tanLinePoints.push([1, tanVal, 0]);
+  }
+
+  // Wave position for current angle
+  const waveX = ((angle / 360) * Math.PI * 2 - Math.PI) * 1.5;
 
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} intensity={1} />
+      <ambientLight intensity={0.4} />
+      <pointLight position={[8, 8, 8]} intensity={1} />
       <pointLight position={[-5, 5, 5]} intensity={0.5} color="#8b5cf6" />
 
       <group ref={groupRef}>
-        {/* Unit Circle Section */}
-        {showUnitCircle && (
-          <group position={[-2, 0, 0]}>
-            {/* Unit circle */}
-            <Line points={circlePoints} color="#8b5cf6" lineWidth={2} />
+        {/* ===== UNIT CIRCLE SECTION ===== */}
+        <group position={[-3, 0, 0]}>
+          {/* Main axes */}
+          <Line points={xAxisPoints} color="#666" lineWidth={1} />
+          <Line points={yAxisPoints} color="#666" lineWidth={1} />
 
-            {/* Angle arc */}
-            <Line points={arcPoints} color="#a78bfa" lineWidth={2} />
+          {/* Unit circle */}
+          <Line points={circlePoints} color="#8b5cf6" lineWidth={2} />
 
-            {/* Angle radius line */}
-            <Line points={[[0, 0, 0], [cosX, sinY, 0]]} color="#fbbf24" lineWidth={3} />
+          {/* Special angle markers */}
+          {specialAngleMarkers.map((marker, i) => {
+            const isMajor = [0, 90, 180, 270, 360].includes(marker.angle);
+            return (
+              <mesh key={i} position={marker.position}>
+                <sphereGeometry args={[isMajor ? 0.05 : 0.03, 8, 8]} />
+                <meshStandardMaterial
+                  color={isMajor ? "#fff" : "#888"}
+                  emissive={isMajor ? "#fff" : "#888"}
+                  emissiveIntensity={0.3}
+                />
+              </mesh>
+            );
+          })}
 
-            {/* Cosine line (horizontal from origin) */}
-            <Line points={[[0, 0, 0], [cosX, 0, 0]]} color="#3b82f6" lineWidth={3} />
-            {/* Cosine indicator line (vertical) */}
-            <Line points={[[cosX, 0, 0], [cosX, sinY, 0]]} color="#3b82f6" lineWidth={1} opacity={0.5} />
+          {/* Angle arc */}
+          <Line points={arcPoints} color="#a78bfa" lineWidth={2} />
 
-            {/* Sine line (vertical from point to axis) */}
+          {/* Radius line to point P */}
+          <Line points={[[0, 0, 0], [cosX, sinY, 0]]} color="#fbbf24" lineWidth={3} />
+
+          {/* Cosine line (horizontal on x-axis) */}
+          {showCos && (
+            <>
+              <Line points={[[0, 0, 0], [cosX, 0, 0]]} color="#3b82f6" lineWidth={3} />
+              <Line points={[[cosX, 0, 0], [cosX, sinY, 0]]} color="#3b82f6" lineWidth={1} opacity={0.5} />
+            </>
+          )}
+
+          {/* Sine line (vertical from x-axis) */}
+          {showSin && (
             <Line points={[[cosX, 0, 0], [cosX, sinY, 0]]} color="#22c55e" lineWidth={3} />
+          )}
 
-            {/* Tangent line (from x=1 to intersection) */}
-            {Math.abs(tanValue) < 10 && Math.abs(cosX) > 0.01 && (
-              <Line points={tanLinePoints} color="#ef4444" lineWidth={2} opacity={0.7} />
+          {/* Tangent line (from x=1) */}
+          {showTan && Math.abs(tanVal) < 10 && Math.abs(cosX) > 0.01 && (
+            <Line points={tanLinePoints} color="#ef4444" lineWidth={2} opacity={0.7} />
+          )}
+
+          {/* Point P on unit circle */}
+          <mesh position={[cosX, sinY, 0]}>
+            <sphereGeometry args={[0.1, 16, 16]} />
+            <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.7} />
+          </mesh>
+
+          {/* Cosine point on x-axis */}
+          {showCos && (
+            <mesh position={[cosX, 0, 0]}>
+              <sphereGeometry args={[0.06, 10, 10]} />
+              <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.6} />
+            </mesh>
+          )}
+
+          {/* Sine point on y-axis */}
+          {showSin && (
+            <mesh position={[0, sinY, 0]}>
+              <sphereGeometry args={[0.06, 10, 10]} />
+              <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.6} />
+            </mesh>
+          )}
+
+          {/* Center point */}
+          <mesh position={[0, 0, 0]}>
+            <sphereGeometry args={[0.04, 8, 8]} />
+            <meshStandardMaterial color="#fff" />
+          </mesh>
+
+          {/* Axis labels */}
+          <mesh position={[1.3, -0.15, 0]}>
+            <planeGeometry args={[0.25, 0.25]} />
+            <meshBasicMaterial color="#3b82f6" />
+          </mesh>
+          <mesh position={[-0.2, 1.3, 0]}>
+            <planeGeometry args={[0.25, 0.25]} />
+            <meshBasicMaterial color="#22c55e" />
+          </mesh>
+
+          {/* P label */}
+          <mesh position={[cosX * 1.15, sinY * 1.15, 0]}>
+            <planeGeometry args={[0.2, 0.2]} />
+            <meshBasicMaterial color="#fbbf24" />
+          </mesh>
+        </group>
+
+        {/* ===== WAVE SECTION ===== */}
+        {showWaves && (
+          <group position={[3, 0, 0]}>
+            {/* Wave background */}
+            <Line points={[[-6, -2, 0], [6, -2, 0]]} color="#444" lineWidth={1} />
+            <Line points={[[-6, 2, 0], [-6, -2, 0]]} color="#444" lineWidth={1} />
+
+            {/* Sin wave */}
+            {showSin && (
+              <>
+                <Line points={sinWavePoints} color="#22c55e" lineWidth={2} />
+                <mesh position={[waveX, Math.sin((angle / 360) * Math.PI * 2), 0]}>
+                  <sphereGeometry args={[0.08, 12, 12]} />
+                  <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.8} />
+                </mesh>
+              </>
             )}
 
-            {/* Point on circle */}
-            <mesh position={[cosX, sinY, 0]}>
-              <sphereGeometry args={[0.1, 16, 16]} />
-              <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.6} />
-            </mesh>
+            {/* Cos wave */}
+            {showCos && (
+              <>
+                <Line points={cosWavePoints} color="#3b82f6" lineWidth={1.5} opacity={0.6} />
+                <mesh position={[waveX, Math.cos((angle / 360) * Math.PI * 2), 0]}>
+                  <sphereGeometry args={[0.06, 10, 10]} />
+                  <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.6} />
+                </mesh>
+              </>
+            )}
 
-            {/* Cosine point on axis */}
-            <mesh position={[cosX, 0, 0]}>
-              <sphereGeometry args={[0.06, 8, 8]} />
-              <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.5} />
-            </mesh>
+            {/* Tan wave */}
+            {showTan && (
+              <Line points={tanWavePoints} color="#ef4444" lineWidth={1} opacity={0.4} />
+            )}
 
-            {/* Sine point on axis */}
-            <mesh position={[0, sinY, 0]}>
-              <sphereGeometry args={[0.06, 8, 8]} />
-              <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.5} />
-            </mesh>
-
-            {/* Axes labels */}
-            <mesh position={[1.4, -0.2, 0]}>
-              <planeGeometry args={[0.3, 0.3]} />
-              <meshBasicMaterial color="#3b82f6" />
-            </mesh>
-            <mesh position={[-0.3, 1.4, 0]}>
-              <planeGeometry args={[0.3, 0.3]} />
-              <meshBasicMaterial color="#22c55e" />
-            </mesh>
-
-            {/* Circle center */}
-            <mesh position={[0, 0, 0]}>
-              <sphereGeometry args={[0.05, 8, 8]} />
-              <meshStandardMaterial color="#fff" />
-            </mesh>
+            {/* Current position indicator line */}
+            <Line points={[[waveX, -2, 0], [waveX, 2, 0]]} color="#666" lineWidth={1} opacity={0.3} />
           </group>
         )}
-
-        {/* Wave Section */}
-        {showWave && (
-          <group ref={waveRef} position={[2.5, 0, 0]}>
-            {/* Sine wave */}
-            <Line
-              points={sineWavePoints}
-              color="#22c55e"
-              lineWidth={2}
-            />
-
-            {/* Cosine wave */}
-            <Line
-              points={cosineWavePoints}
-              color="#3b82f6"
-              lineWidth={2}
-              opacity={0.7}
-            />
-
-            {/* Tangent wave */}
-            <Line
-              points={tangentWavePoints}
-              color="#ef4444"
-              lineWidth={1}
-              opacity={0.4}
-            />
-
-            {/* Animated point on sine wave */}
-            <mesh position={[waveOffset, Math.sin(waveX), 0]}>
-              <sphereGeometry args={[0.08, 12, 12]} />
-              <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={0.8} />
-            </mesh>
-
-            {/* Connection line from x-axis to wave */}
-            <Line
-              points={[[waveOffset, -1.5, 0], [waveOffset, Math.sin(waveX), 0]]}
-              color="#22c55e"
-              lineWidth={1}
-              opacity={0.3}
-            />
-
-            {/* Wave base line */}
-            <Line points={[[-4, -1.5, 0], [4, -1.5, 0]]} color="#444" lineWidth={1} />
-
-            {/* Legend */}
-            <mesh position={[2, 2.5, 0]}>
-              <planeGeometry args={[2.5, 0.8]} />
-              <meshBasicMaterial color="#1a1a2e" transparent opacity={0.8} />
-            </mesh>
-          </group>
-        )}
-
-        {/* Main axes for entire scene */}
-        <Line points={xAxisPoints} color="#666" lineWidth={1} />
-        <Line points={yAxisPoints} color="#666" lineWidth={1} />
       </group>
-
-      {/* Labels */}
-      <mesh position={[0, 3.5, 0]}>
-        <planeGeometry args={[5, 0.5]} />
-        <meshBasicMaterial color="#8b5cf6" transparent opacity={0.8} />
-      </mesh>
     </>
   );
 }

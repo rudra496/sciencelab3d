@@ -167,14 +167,14 @@ export function ExperimentContainer({
           makeDefault
           enableDamping
           dampingFactor={0.05}
-          minDistance={isMobile ? 5 : 10}
-          maxDistance={isMobile ? 100 : 200}
-          maxPolarAngle={Math.PI / 2 + 0.1}
-          minPolarAngle={Math.PI / 6}
-          enablePan={!isMobile}
-          panSpeed={isMobile ? 0 : 0.5}
-          rotateSpeed={isMobile ? 0.5 : 1}
-          zoomSpeed={isMobile ? 0.8 : 1.2}
+          minDistance={isMobile ? 3 : 5}
+          maxDistance={isMobile ? 150 : 250}
+          maxPolarAngle={Math.PI * 0.95}
+          minPolarAngle={0}
+          enablePan={true}
+          panSpeed={isMobile ? 0.8 : 0.5}
+          rotateSpeed={isMobile ? 0.8 : 1}
+          zoomSpeed={isMobile ? 1.0 : 1.2}
           touches={{
             ONE: THREE.TOUCH.ROTATE,
             TWO: THREE.TOUCH.DOLLY_PAN,
@@ -373,6 +373,7 @@ export function ExperimentContainer({
       {/* Instructions hint */}
       <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 z-10 text-[10px] sm:text-xs text-gray-500 bg-black/50 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg backdrop-blur-sm hidden sm:block">
         <span>🖱️ Drag to rotate • Scroll to zoom • Right-click to pan</span>
+        <span className="sm:hidden block mt-0.5">📱 One finger: rotate • Pinch: zoom • Two fingers: pan</span>
       </div>
     </div>
   );

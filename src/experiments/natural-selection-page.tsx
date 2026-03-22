@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
   SimulationController,
@@ -12,21 +11,24 @@ import { ControlGroup, ControlSlider, DataGrid } from '@/components/experiment-u
 import NaturalSelectionSceneComponent, { NaturalSelectionData } from './natural-selection-scene';
 
 export default function NaturalSelectionPage() {
-  const router = useRouter();
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [showData, setShowData] = useState(false);
 
-  const [mutationRate, setMutationRate] = useState(0.1);
-  const [selectionPressure, setSelectionPressure] = useState(0.5);
-  const [speed, setSpeed] = useState(1);
+  const [mutationRate, setMutationRate] = useState(0.15);
+  const [predatorSpeed, setPredatorSpeed] = useState(1);
+  const [initialPopulation, setInitialPopulation] = useState(40);
+  const [generationSpeed, setGenerationSpeed] = useState(1);
 
   const [selectionData, setSelectionData] = useState<NaturalSelectionData>({
-    populationSize: 30,
-    avgFitness: 50,
     generation: 0,
+    populationCount: 40,
+    percentGreen: 50,
+    percentRed: 50,
+    averageSize: 0.6,
+    percentSurviving: 100,
   });
 
   const handlePlayPause = useCallback(() => {
@@ -35,9 +37,6 @@ export default function NaturalSelectionPage() {
 
   const handleReset = useCallback(() => {
     setResetTrigger((t) => t + 1);
-    setMutationRate(0.1);
-    setSelectionPressure(0.5);
-    setSpeed(1);
   }, []);
 
   const handleSpeedChange = useCallback((s: number) => {
@@ -59,45 +58,74 @@ export default function NaturalSelectionPage() {
             max={0.5}
             step={0.05}
             onChange={setMutationRate}
-              />
+            color="#22c55e"
+            decimals={2}
+          />
           <ControlSlider
-            label="Selection Pressure"
-            value={selectionPressure}
-            min={0}
-            max={1}
+            label="Predator Speed"
+            value={predatorSpeed}
+            min={0.5}
+            max={2}
             step={0.1}
-            onChange={setSelectionPressure}
-              />
+            onChange={setPredatorSpeed}
+            color="#ef4444"
+            decimals={1}
+          />
           <ControlSlider
-            label="Speed"
-            value={speed}
+            label="Initial Population"
+            value={initialPopulation}
+            min={20}
+            max={80}
+            step={5}
+            onChange={setInitialPopulation}
+            color="#3b82f6"
+            decimals={0}
+          />
+          <ControlSlider
+            label="Generation Speed"
+            value={generationSpeed}
             min={0.5}
             max={3}
             step={0.1}
-            onChange={setSpeed}
-              />
+            onChange={setGenerationSpeed}
+            color="#fbbf24"
+            decimals={1}
+          />
         </ControlGroup>
 
+        <div className="bg-green-50/50 rounded-lg p-3 border border-green-200/50">
+          <div className="text-xs text-gray-600 mb-2 font-medium">Natural Selection Info</div>
+          <div className="text-xs text-gray-500 space-y-1">
+            <div>• Green organisms are camouflaged in grass</div>
+            <div>• Red organisms are visible to predators</div>
+            <div>• Smaller organisms move faster</div>
+            <div>• Survivors reproduce with mutations</div>
+          </div>
+        </div>
+
         <button
-          onClick={() => router.push('/experiments/natural-selection/details')}
-          className="w-full mt-4 px-4 py-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] rounded-lg border border-[#10b981]/50 transition-colors text-sm font-medium"
+          onClick={handleReset}
+          className="w-full mt-4 px-4 py-2 bg-[#22c55e]/20 hover:bg-[#22c55e]/30 text-[#22c55e] rounded-lg border border-[#22c55e]/50 transition-colors text-sm font-medium"
         >
-          View Details
+          Reset Simulation
         </button>
       </>
     ),
-    [mutationRate, selectionPressure, speed, router]
+    [mutationRate, predatorSpeed, initialPopulation, generationSpeed, handleReset]
   );
 
   const dataContent = useMemo(
     () => (
       <DataGrid
         data={{
-          generation: { value: selectionData.generation, unit: "gen", color: "#10b981", decimals: 0 },
-          population: { value: selectionData.populationSize, unit: "individuals", color: "#34d399", decimals: 0 },
-          avgFitness: { value: selectionData.avgFitness, unit: "%", color: "#6ee7b7", decimals: 1 },
+          generation: { value: selectionData.generation, unit: "gen", color: "#22c55e", decimals: 0 },
+          population: { value: selectionData.populationCount, unit: "organisms", color: "#34d399", decimals: 0 },
+          green: { value: selectionData.percentGreen, unit: "camouflaged", color: "#22c55e", decimals: 0 },
+          red: { value: selectionData.percentRed, unit: "visible", color: "#ef4444", decimals: 0 },
+          avgSize: { value: selectionData.averageSize, unit: "size", color: "#3b82f6", decimals: 2 },
+          surviving: { value: selectionData.percentSurviving, unit: "%", color: "#fbbf24", decimals: 0 },
         }}
-        columns={1}
+        columns={2}
       />
     ),
     [selectionData]
@@ -115,10 +143,10 @@ export default function NaturalSelectionPage() {
   return (
     <div className="w-full h-screen relative">
       <ExperimentContainer
-        title="Natural Selection Simulator"
-        description="Watch evolution in action - population adaptation over generations"
-        cameraPosition={[0, 2, 12]}
-        backgroundColor="#050510"
+        title="Natural Selection"
+        description="Watch evolution in action: camouflaged organisms survive predators and pass on their traits"
+        cameraPosition={[0, 8, 12]}
+        backgroundColor="#0a0a0f"
         controls={null}
         dataPanel={dataPanel}
       >
@@ -128,8 +156,9 @@ export default function NaturalSelectionPage() {
           simulationSpeed={simulationSpeed}
           resetTrigger={resetTrigger}
           mutationRate={mutationRate}
-          selectionPressure={selectionPressure}
-          speed={speed}
+          predatorSpeed={predatorSpeed}
+          initialPopulation={initialPopulation}
+          generationSpeed={generationSpeed}
         />
       </ExperimentContainer>
 
@@ -144,7 +173,7 @@ export default function NaturalSelectionPage() {
 
       {showControls && (
         <FloatingControlPanel
-            initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
+          initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
         >
           {parameterControls}
         </FloatingControlPanel>
@@ -153,7 +182,7 @@ export default function NaturalSelectionPage() {
       {!showControls && (
         <button
           onClick={() => setShowControls(true)}
-          className="fixed top-20 right-4 z-20 px-4 py-2 bg-[#10b981]/20 hover:bg-[#10b981]/30 text-[#10b981] rounded-lg border border-[#10b981]/50 transition-colors text-sm font-medium"
+          className="fixed top-20 right-4 z-20 px-4 py-2 bg-[#22c55e]/20 hover:bg-[#22c55e]/30 text-[#22c55e] rounded-lg border border-[#22c55e]/50 transition-colors text-sm font-medium"
         >
           Show Controls
         </button>

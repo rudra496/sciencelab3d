@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
@@ -18,16 +18,37 @@ export default function ProteinSynthesisPage() {
   const [resetTrigger, setResetTrigger] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [showData, setShowData] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
 
   const [speed, setSpeed] = useState(1);
-  const [stage, setStage] = useState(0);
-  const [showCodons, setShowCodons] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
+  const [step, setStep] = useState(0);
+  const autoPlayRef = useRef<NodeJS.Timeout | null>(null);
 
   const [proteinData, setProteinData] = useState<ProteinSynthesisData>({
-    stage: 'Transcription',
-    codonsProcessed: 0,
-    aminoAcidsFormed: 0,
+    phase: 'Transcription',
+    step: 'DNA in Nucleus',
+    codonBeingRead: 'AUG',
+    aminoAcidAdded: 'Met',
+    proteinLength: 0,
+    description: 'DNA double helix in nucleus with RNA Polymerase',
   });
+
+  // Auto-play through steps
+  useEffect(() => {
+    if (autoPlay && isPlaying) {
+      autoPlayRef.current = setTimeout(() => {
+        if (step < 5) {
+          setStep(step + 1);
+        } else {
+          setAutoPlay(false);
+        }
+      }, 5000 / simulationSpeed);
+    }
+    return () => {
+      if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
+    };
+  }, [autoPlay, step, isPlaying, simulationSpeed]);
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying((p) => !p);
@@ -36,9 +57,17 @@ export default function ProteinSynthesisPage() {
   const handleReset = useCallback(() => {
     setResetTrigger((t) => t + 1);
     setSpeed(1);
-    setStage(0);
-    setShowCodons(true);
-    setProteinData({ stage: 'Transcription', codonsProcessed: 0, aminoAcidsFormed: 0 });
+    setShowLabels(true);
+    setStep(0);
+    setAutoPlay(false);
+    setProteinData({
+      phase: 'Transcription',
+      step: 'DNA in Nucleus',
+      codonBeingRead: 'AUG',
+      aminoAcidAdded: 'Met',
+      proteinLength: 0,
+      description: 'DNA double helix in nucleus with RNA Polymerase',
+    });
   }, []);
 
   const handleSpeedChange = useCallback((s: number) => {
@@ -60,23 +89,40 @@ export default function ProteinSynthesisPage() {
             max={3}
             step={0.1}
             onChange={setSpeed}
-              />
+          />
           <div className="mt-3 space-y-2">
-            <label className="text-xs text-gray-400 block mb-2">Protein Synthesis Stage</label>
-            {['Transcription', 'Translation', 'Complete'].map((s, i) => (
+            <label className="text-xs text-gray-400 block mb-2">Protein Synthesis Step</label>
+            {[
+              'DNA in Nucleus',
+              'RNA Polymerase Builds mRNA',
+              'mRNA Exits Nucleus',
+              'Ribosome Binds mRNA',
+              'tRNA Brings Amino Acids',
+              'Protein Folding'
+            ].map((s, i) => (
               <button
                 key={s}
-                onClick={() => setStage(i)}
+                onClick={() => setStep(i)}
                 className={`w-full px-3 py-2 rounded text-sm transition-colors ${
-                  stage === i
-                    ? 'bg-[#8b5cf6] text-white'
+                  step === i
+                    ? 'bg-[#8b5cf6] text-white font-medium'
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                {s}
+                {i + 1}. {s}
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setAutoPlay(!autoPlay)}
+            className={`w-full mt-3 px-3 py-2 rounded text-sm font-medium transition-colors ${
+              autoPlay
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {autoPlay ? '⏸ Auto Playing' : '▶ Auto Play Steps'}
+          </button>
         </ControlGroup>
 
         <ControlGroup title="Display Options">
@@ -84,11 +130,11 @@ export default function ProteinSynthesisPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={showCodons}
-                onChange={(e) => setShowCodons(e.target.checked)}
+                checked={showLabels}
+                onChange={(e) => setShowLabels(e.target.checked)}
                 className="w-4 h-4 accent-[#8b5cf6]"
               />
-              <span className="text-gray-300">Show Codons</span>
+              <span className="text-gray-300">Show Labels</span>
             </label>
           </div>
         </ControlGroup>
@@ -101,16 +147,18 @@ export default function ProteinSynthesisPage() {
         </button>
       </>
     ),
-    [speed, stage, showCodons, router]
+    [speed, step, showLabels, autoPlay, router]
   );
 
   const dataContent = useMemo(
     () => (
       <DataGrid
         data={{
-          stage: { value: 0, unit: proteinData.stage, color: '#8b5cf6', decimals: 0 },
-          codons: { value: proteinData.codonsProcessed, unit: 'codons', color: '#a78bfa', decimals: 0 },
-          aminoAcids: { value: proteinData.aminoAcidsFormed, unit: 'AA', color: '#c4b5fd', decimals: 0 },
+          phase: { value: 0, unit: proteinData.phase, color: '#8b5cf6', decimals: 0 },
+          step: { value: 0, unit: proteinData.step, color: '#f59e0b', decimals: 0 },
+          codon: { value: 0, unit: proteinData.codonBeingRead, color: '#f97316', decimals: 0 },
+          aminoAcid: { value: 0, unit: proteinData.aminoAcidAdded, color: '#22c55e', decimals: 0 },
+          protein: { value: proteinData.proteinLength, unit: 'AA', color: '#3b82f6', decimals: 0 },
           status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
@@ -144,8 +192,8 @@ export default function ProteinSynthesisPage() {
           simulationSpeed={simulationSpeed}
           resetTrigger={resetTrigger}
           speed={speed}
-          stage={stage}
-          showCodons={showCodons}
+          showLabels={showLabels}
+          step={step}
         />
       </ExperimentContainer>
 
@@ -160,7 +208,7 @@ export default function ProteinSynthesisPage() {
 
       {showControls && (
         <FloatingControlPanel
-            initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
+          initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
         >
           {parameterControls}
         </FloatingControlPanel>

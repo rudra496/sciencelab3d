@@ -1,14 +1,17 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState } from 'react';
+import { useRef, useMemo, useEffect, useState, useCallback } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Line, Html } from '@react-three/drei';
+import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 
 export interface NaturalSelectionData {
-  populationSize: number;
-  avgFitness: number;
   generation: number;
+  populationCount: number;
+  percentGreen: number;
+  percentRed: number;
+  averageSize: number;
+  percentSurviving: number;
 }
 
 interface NaturalSelectionSceneProps {
@@ -17,356 +20,433 @@ interface NaturalSelectionSceneProps {
   simulationSpeed?: number;
   resetTrigger?: number;
   mutationRate?: number;
-  selectionPressure?: number;
-  speed?: number;
+  predatorSpeed?: number;
+  initialPopulation?: number;
+  generationSpeed?: number;
 }
 
 interface Organism {
   id: number;
-  position: THREE.Vector3;
-  velocity: THREE.Vector3;
-  fitness: number;
-  color: string;
-  size: number;
+  position: [number, number, number];
+  velocity: [number, number, number];
+  size: number; // 0.3-1.0 (small=fast, big=slow)
+  color: 'green' | 'red'; // green=camouflaged, red=visible
+  alive: boolean;
   age: number;
 }
 
-/**
- * Natural Selection scene component - Performance optimized
- * Visualizes population evolution with natural selection over generations
- */
+interface Predator {
+  id: number;
+  position: [number, number, number];
+  target: number | null;
+}
+
 export default function NaturalSelectionSceneComponent({
   onDataChange,
   isPlaying = true,
   simulationSpeed = 1,
   resetTrigger = 0,
   mutationRate = 0.1,
-  selectionPressure = 0.5,
-  speed = 1,
+  predatorSpeed = 1,
+  initialPopulation = 40,
+  generationSpeed = 1,
 }: NaturalSelectionSceneProps) {
   const groupRef = useRef<THREE.Group>(null);
-
-  // Performance refs - physics state updated every frame
-  const organismsRef = useRef<Organism[]>([]);
-  const generationRef = useRef(0);
-  const timeRef = useRef(0);
-  const lastGenerationTimeRef = useRef(0);
   const frameCountRef = useRef(0);
 
-  // React state - updated only every 8 frames
-  const [data, setData] = useState<NaturalSelectionData>({
-    populationSize: 30,
-    avgFitness: 50,
+  // Physics state in refs
+  const organismsRef = useRef<Organism[]>([]);
+  const predatorRef = useRef<Predator>({ id: 0, position: [0, 0, 0], target: null });
+  const generationRef = useRef(0);
+  const generationTimeRef = useRef(0);
+  const generationDataRef = useRef<{ gen: number; green: number; red: number; avgSize: number }[]>([]);
+  const timeRef = useRef(0);
+
+  // React state for UI updates (throttled)
+  const [displayData, setDisplayData] = useState<NaturalSelectionData>({
     generation: 0,
+    populationCount: initialPopulation,
+    percentGreen: 50,
+    percentRed: 50,
+    averageSize: 0.6,
+    percentSurviving: 100,
   });
 
-  const colors = ['#10b981', '#22c55e', '#14b8a6', '#06d6a0', '#34d399', '#6ee7b7'];
-
-  // Initialize organisms on reset
+  // Initialize population
   useEffect(() => {
     const newOrganisms: Organism[] = [];
-    for (let i = 0; i < 30; i++) {
-      const fitness = Math.random();
+    for (let i = 0; i < initialPopulation; i++) {
+      const isGreen = Math.random() > 0.5;
+      const size = 0.3 + Math.random() * 0.7;
       newOrganisms.push({
         id: i,
-        position: new THREE.Vector3(
-          (Math.random() - 0.5) * 8,
-          (Math.random() - 0.5) * 4,
-          (Math.random() - 0.5) * 8,
-        ),
-        velocity: new THREE.Vector3(
+        position: [
+          (Math.random() - 0.5) * 14,
+          0,
+          (Math.random() - 0.5) * 14,
+        ],
+        velocity: [
           (Math.random() - 0.5) * 0.02,
+          0,
           (Math.random() - 0.5) * 0.02,
-          (Math.random() - 0.5) * 0.02,
-        ),
-        fitness,
-        color: colors[Math.floor(fitness * colors.length)],
-        size: 0.2 + fitness * 0.15,
+        ],
+        size,
+        color: isGreen ? 'green' : 'red',
+        alive: true,
         age: 0,
       });
     }
     organismsRef.current = newOrganisms;
+    predatorRef.current = { id: 0, position: [0, 0, 0], target: null };
     generationRef.current = 0;
+    generationTimeRef.current = 0;
+    generationDataRef.current = [];
     timeRef.current = 0;
-    lastGenerationTimeRef.current = 0;
-    frameCountRef.current = 0;
-  }, [resetTrigger]);
+  }, [resetTrigger, initialPopulation]);
 
-  // Boundary lines using Line
-  const boundaryLines = useMemo(() => {
-    const lines: [number, number, number][][] = [];
-    const w = 5, h = 2.5, d = 5;
-
-    // Bottom rectangle
-    lines.push([
-      [-w, -h, -d], [w, -h, -d],
-    ]);
-    lines.push([
-      [w, -h, -d], [w, -h, d],
-    ]);
-    lines.push([
-      [w, -h, d], [-w, -h, d],
-    ]);
-    lines.push([
-      [-w, -h, d], [-w, -h, -d],
-    ]);
-
-    // Vertical posts
-    [[-w, -h, -d], [w, -h, -d]].forEach(([x, , z]) => {
-      lines.push([[x, -h, z], [x, h, z]]);
-    });
-
-    return lines;
+  // Get organism speed based on size (smaller = faster)
+  const getSpeed = useCallback((size: number) => {
+    return 0.02 * (1.2 - size); // Size 0.3 => fast, Size 1.0 => slow
   }, []);
 
-  // Fitness gradient visualization
-  const fitnessHeatmap = useMemo(() => {
-    const lines: [number, number, number][][] = [];
-    for (let i = 0; i < 10; i++) {
-      const z = -5 + i * 1.1;
-      lines.push([
-        [-5, -2.9, z], [5, -2.9, z],
-      ]);
-    }
-    return lines;
+  // Get detection probability (red = more visible, large = more visible)
+  const getVisibility = useCallback((org: Organism) => {
+    let visibility = 0.3;
+    if (org.color === 'red') visibility += 0.5;
+    visibility += org.size * 0.3;
+    return Math.min(1, visibility);
   }, []);
 
-  // Throttled updates (every 8 frames)
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!groupRef.current || !isPlaying) return;
 
-    timeRef.current += delta * simulationSpeed * speed;
-    const organisms = organismsRef.current;
+    frameCountRef.current++;
+    timeRef.current += delta * simulationSpeed * generationSpeed;
 
-    // Update organism physics
-    for (const org of organisms) {
-      // Random motion (Brownian motion + fitness-driven movement)
-      org.velocity.x += (Math.random() - 0.5) * 0.002 * (1 + org.fitness);
-      org.velocity.y += (Math.random() - 0.5) * 0.002;
-      org.velocity.z += (Math.random() - 0.5) * 0.002 * (1 + org.fitness);
+    const organisms = organismsRef.current;
+    const predator = predatorRef.current;
+
+    // Update organisms (Brownian motion with size-based speed)
+    organisms.forEach((org) => {
+      if (!org.alive) return;
+
+      const speed = getSpeed(org.size);
+      org.velocity[0] += (Math.random() - 0.5) * 0.01 * simulationSpeed;
+      org.velocity[2] += (Math.random() - 0.5) * 0.01 * simulationSpeed;
 
       // Clamp velocity
-      const maxSpeed = 0.025 * (0.5 + org.fitness * 0.5) * speed;
-      const currentSpeed = org.velocity.length();
-      if (currentSpeed > maxSpeed) {
-        org.velocity.normalize().multiplyScalar(maxSpeed);
+      const currentSpeed = Math.sqrt(org.velocity[0] ** 2 + org.velocity[2] ** 2);
+      if (currentSpeed > speed) {
+        const factor = speed / currentSpeed;
+        org.velocity[0] *= factor;
+        org.velocity[2] *= factor;
       }
 
-      // Update position
-      org.position.add(org.velocity.clone().multiplyScalar(simulationSpeed * speed));
+      org.position[0] += org.velocity[0] * simulationSpeed;
+      org.position[2] += org.velocity[2] * simulationSpeed;
 
-      // Boundary collisions
-      const bounds = { x: 5, y: 2.5, z: 5 };
-      if (Math.abs(org.position.x) > bounds.x) {
-        org.velocity.x *= -1;
-        org.position.x = Math.sign(org.position.x) * bounds.x;
-      }
-      if (Math.abs(org.position.y) > bounds.y) {
-        org.velocity.y *= -1;
-        org.position.y = Math.sign(org.position.y) * bounds.y;
-      }
-      if (Math.abs(org.position.z) > bounds.z) {
-        org.velocity.z *= -1;
-        org.position.z = Math.sign(org.position.z) * bounds.z;
-      }
+      // Wrap around boundaries
+      const bound = 7;
+      if (org.position[0] > bound) org.position[0] = -bound;
+      if (org.position[0] < -bound) org.position[0] = bound;
+      if (org.position[2] > bound) org.position[2] = -bound;
+      if (org.position[2] < -bound) org.position[2] = bound;
 
-      // Age the organism
       org.age += delta * simulationSpeed;
+    });
+
+    // Predator hunting behavior
+    const aliveOrgs = organisms.filter(o => o.alive);
+    if (aliveOrgs.length > 0) {
+      // Find nearest visible target or pick random
+      let target = aliveOrgs.find(o => o.id === predator.target);
+      if (!target || !target.alive) {
+        const visibleOrgs = aliveOrgs.filter(o => Math.random() < getVisibility(o));
+        target = visibleOrgs.length > 0
+          ? visibleOrgs[Math.floor(Math.random() * visibleOrgs.length)]
+          : aliveOrgs[Math.floor(Math.random() * aliveOrgs.length)];
+        predator.target = target?.id ?? null;
+      }
+
+      if (target) {
+        const dx = target.position[0] - predator.position[0];
+        const dz = target.position[2] - predator.position[2];
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        const predSpeed = 0.03 * predatorSpeed * simulationSpeed;
+
+        if (dist > 0.5) {
+          predator.position[0] += (dx / dist) * predSpeed;
+          predator.position[2] += (dz / dist) * predSpeed;
+        } else {
+          // Catch and eat
+          target.alive = false;
+          predator.target = null;
+        }
+      }
     }
 
-    // New generation every 5 seconds
-    if (timeRef.current - lastGenerationTimeRef.current > 5) {
-      lastGenerationTimeRef.current = timeRef.current;
-      generationRef.current++;
+    // Check for new generation (every 6 seconds adjusted by speed)
+    if (timeRef.current - generationTimeRef.current > 6 / generationSpeed) {
+      generationTimeRef.current = timeRef.current;
+      const newGen = generationRef.current + 1;
+      generationRef.current = newGen;
 
-      // Sort by fitness (natural selection)
-      const sorted = [...organisms].sort((a, b) => b.fitness - a.fitness);
+      // Record data for graph
+      const survivors = organisms.filter(o => o.alive);
+      const greenCount = survivors.filter(o => o.color === 'green').length;
+      const redCount = survivors.filter(o => o.color === 'red').length;
+      const avgSize = survivors.reduce((sum, o) => sum + o.size, 0) / survivors.length;
 
-      // Calculate survivors based on selection pressure
-      const survivorsCount = Math.max(10, Math.floor(organisms.length * (1 - selectionPressure * 0.4)));
-      const survivors = sorted.slice(0, survivorsCount);
+      generationDataRef.current.push({ gen: newGen, green: greenCount, red: redCount, avgSize });
 
-      // Create offspring from survivors
+      // Survivors reproduce
       const offspring: Organism[] = [];
-      while (survivors.length + offspring.length < 30 && survivors.length > 0) {
+      while (survivors.length + offspring.length < initialPopulation && survivors.length > 0) {
         const parent = survivors[Math.floor(Math.random() * survivors.length)];
-        const mutation = Math.random() < mutationRate ? (Math.random() - 0.5) * 0.3 : 0;
-        const newFitness = Math.max(0.05, Math.min(1, parent.fitness + mutation));
+        const hasMutation = Math.random() < mutationRate;
 
         offspring.push({
           id: organisms.length + offspring.length,
-          position: new THREE.Vector3(
-            (Math.random() - 0.5) * 8,
-            (Math.random() - 0.5) * 4,
-            (Math.random() - 0.5) * 8,
-          ),
-          velocity: new THREE.Vector3(
+          position: [
+            parent.position[0] + (Math.random() - 0.5) * 2,
+            0,
+            parent.position[2] + (Math.random() - 0.5) * 2,
+          ],
+          velocity: [
             (Math.random() - 0.5) * 0.02,
+            0,
             (Math.random() - 0.5) * 0.02,
-            (Math.random() - 0.5) * 0.02,
-          ),
-          fitness: newFitness,
-          color: colors[Math.floor(newFitness * colors.length)],
-          size: 0.2 + newFitness * 0.15,
+          ],
+          size: hasMutation ? Math.max(0.3, Math.min(1, parent.size + (Math.random() - 0.5) * 0.3)) : parent.size,
+          color: hasMutation ? (Math.random() > 0.5 ? 'green' : 'red') : parent.color,
+          alive: true,
           age: 0,
         });
       }
 
-      // Update population
       organismsRef.current = [...survivors, ...offspring];
     }
 
-    frameCountRef.current++;
-
-    // Update React state only every 8 frames
+    // Update React state every 8 frames
     if (frameCountRef.current % 8 === 0) {
-      const currentOrgs = organismsRef.current;
-      const avgFitness = currentOrgs.reduce((sum, o) => sum + o.fitness, 0) / currentOrgs.length;
+      const currentOrgs = organismsRef.current.filter(o => o.alive);
+      const greenCount = currentOrgs.filter(o => o.color === 'green').length;
+      const redCount = currentOrgs.filter(o => o.color === 'red').length;
+      const avgSize = currentOrgs.reduce((sum, o) => sum + o.size, 0) / currentOrgs.length;
+      const surviving = Math.round((currentOrgs.length / initialPopulation) * 100);
 
       const newData: NaturalSelectionData = {
-        populationSize: currentOrgs.length,
-        avgFitness: Math.round(avgFitness * 100),
         generation: generationRef.current,
+        populationCount: currentOrgs.length,
+        percentGreen: Math.round((greenCount / currentOrgs.length) * 100),
+        percentRed: Math.round((redCount / currentOrgs.length) * 100),
+        averageSize: Math.round(avgSize * 100) / 100,
+        percentSurviving: surviving,
       };
 
-      setData(newData);
+      setDisplayData(newData);
       onDataChange?.(newData);
     }
   });
 
-  // Get current organisms for rendering (updated when data updates)
-  const displayOrganisms = useMemo(() => {
-    return organismsRef.current.map(org => ({
-      ...org,
-      position: org.position.clone(),
-    }));
-  }, [data]); // Re-compute when data updates
+  // Graph data for Line component
+  const populationGraphData = useMemo(() => {
+    const data = generationDataRef.current;
+    if (data.length === 0) return [];
+
+    const points: [number, number, number][] = [];
+    const maxPop = initialPopulation;
+    const xStart = -6;
+    const zStart = -6;
+
+    data.forEach((d, i) => {
+      const x = xStart + i * 0.5;
+      // Green line
+      points.push([x, 1, zStart + (d.green / maxPop) * 3]);
+      if (i < data.length - 1) {
+        points.push([x + 0.5, 1, zStart + (data[i + 1].green / maxPop) * 3]);
+      }
+    });
+
+    return points;
+  }, [displayData, initialPopulation]);
+
+  const redGraphData = useMemo(() => {
+    const data = generationDataRef.current;
+    if (data.length === 0) return [];
+
+    const points: [number, number, number][] = [];
+    const maxPop = initialPopulation;
+    const xStart = -6;
+    const zStart = -6;
+
+    data.forEach((d, i) => {
+      const x = xStart + i * 0.5;
+      // Red line
+      points.push([x, 0.5, zStart + (d.red / maxPop) * 3]);
+      if (i < data.length - 1) {
+        points.push([x + 0.5, 0.5, zStart + (data[i + 1].red / maxPop) * 3]);
+      }
+    });
+
+    return points;
+  }, [displayData, initialPopulation]);
+
+  // Memoized organism rendering
+  const organismElements = useMemo(() => {
+    return organismsRef.current
+      .filter(o => o.alive)
+      .map((org) => (
+        <group key={org.id} position={org.position}>
+          <mesh>
+            <sphereGeometry args={[org.size * 0.25, 12, 12]} />
+            <meshStandardMaterial
+              color={org.color === 'green' ? '#22c55e' : '#ef4444'}
+              emissive={org.color === 'green' ? '#22c55e' : '#ef4444'}
+              emissiveIntensity={0.3}
+              roughness={0.5}
+              metalness={0.3}
+            />
+          </mesh>
+        </group>
+      ));
+  }, [displayData]);
 
   return (
     <>
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
-      <pointLight position={[0, 5, 0]} intensity={0.4} color="#10b981" />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[10, 15, 10]} intensity={0.8} castShadow />
+      <pointLight position={[0, 8, 0]} intensity={0.3} color="#22c55e" />
+
+      <OrbitControls enableDamping dampingFactor={0.05} maxPolarAngle={Math.PI / 2.5} />
 
       <group ref={groupRef}>
-        {/* Ground/environment */}
-        <mesh position={[0, -3, 0]} rotation={[0, 0, 0]}>
-          <planeGeometry args={[12, 12]} />
-          <meshStandardMaterial color="#064e3b" roughness={0.9} metalness={0.1} />
+        {/* Grass field (green plane) */}
+        <mesh position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[16, 16]} />
+          <meshStandardMaterial color="#15803d" roughness={0.95} metalness={0.05} />
         </mesh>
 
-        {/* Boundary lines */}
-        {boundaryLines.map((line, i) => (
-          <Line
+        {/* Grass texture details */}
+        {Array.from({ length: 200 }).map((_, i) => (
+          <mesh
             key={i}
-            points={line}
-            color="#059669"
-            lineWidth={1}
-            opacity={0.5}
-            transparent
-            dashed
-            dashSize={0.2}
-            gapSize={0.1}
-          />
-        ))}
-
-        {/* Fitness heatmap on ground */}
-        {fitnessHeatmap.map((line, i) => (
-          <Line
-            key={i}
-            points={line}
-            color={i < 3 ? '#fbbf24' : i < 6 ? '#22c55e' : '#10b981'}
-            lineWidth={2}
-            opacity={0.3}
-            transparent
-          />
+            position={[
+              (Math.random() - 0.5) * 15,
+              0,
+              (Math.random() - 0.5) * 15,
+            ]}
+            rotation={[0, Math.random() * Math.PI, 0]}
+          >
+            <coneGeometry args={[0.02, 0.15, 4]} />
+            <meshStandardMaterial color="#16a34a" roughness={0.8} />
+          </mesh>
         ))}
 
         {/* Organisms */}
-        {displayOrganisms.map((org) => (
-          <group key={org.id} position={org.position}>
-            {/* Organism body */}
-            <mesh>
-              <sphereGeometry args={[org.size, 16, 16]} />
-              <meshStandardMaterial
-                color={org.color}
-                emissive={org.color}
-                emissiveIntensity={org.fitness * 0.4}
-                metalness={0.3}
-                roughness={0.7}
-              />
-            </mesh>
+        {organismElements}
 
-            {/* Fitness indicator (glow) */}
-            {org.fitness > 0.7 && (
-              <mesh>
-                <sphereGeometry args={[org.size * 1.3, 12, 12]} />
-                <meshBasicMaterial
-                  color={org.color}
-                  transparent
-                  opacity={0.2}
-                  blending={THREE.AdditiveBlending}
-                />
-              </mesh>
-            )}
-
-            {/* Age indicator - older organisms look slightly different */}
-            {org.age > 3 && (
-              <mesh>
-                <sphereGeometry args={[org.size * 0.5, 8, 8]} />
-                <meshStandardMaterial
-                  color="#ffffff"
-                  transparent
-                  opacity={0.3}
-                />
-              </mesh>
-            )}
-          </group>
-        ))}
-
-        {/* Environment pressure indicator */}
-        <mesh position={[0, 3.2, 0]}>
-          <boxGeometry args={[0.3 + selectionPressure * 0.3, 0.3, 0.3]} />
+        {/* Predator (large red triangle/cone) */}
+        <mesh position={[predatorRef.current.position[0], 0.5, predatorRef.current.position[2]]}>
+          <coneGeometry args={[0.5, 1, 4]} />
           <meshStandardMaterial
-            color="#ef4444"
-            emissive="#ef4444"
-            emissiveIntensity={selectionPressure * 0.8}
+            color="#dc2626"
+            emissive="#dc2626"
+            emissiveIntensity={0.5}
+            roughness={0.4}
+            metalness={0.4}
           />
         </mesh>
+        <mesh position={[predatorRef.current.position[0], 0.5, predatorRef.current.position[2]]}>
+          <sphereGeometry args={[0.15, 8, 8]} />
+          <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.8} />
+        </mesh>
 
-        {/* Labels */}
-        <Html position={[0, 3.8, 0]} distanceFactor={10}>
-          <div className="bg-green-500/90 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg">
-            Generation: {data.generation} | Population: {data.populationSize}
+        {/* Population graph */}
+        <group position={[-5, 3, 5]} rotation={[-Math.PI / 3, 0, 0]}>
+          {/* Graph background */}
+          <mesh position={[3, 0.5, -1.5]}>
+            <boxGeometry args={[8, 2, 0.1]} />
+            <meshStandardMaterial color="#1f2937" transparent opacity={0.8} />
+          </mesh>
+
+          {/* Green population line */}
+          {populationGraphData.length > 1 && (
+            <Line points={populationGraphData} color="#22c55e" lineWidth={3} />
+          )}
+
+          {/* Red population line */}
+          {redGraphData.length > 1 && (
+            <Line points={redGraphData} color="#ef4444" lineWidth={3} />
+          )}
+
+          <Html position={[7, 1.5, -1.5]} distanceFactor={15}>
+            <div className="bg-gray-900/90 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
+              Population Over Generations
+            </div>
+          </Html>
+        </group>
+
+        {/* Labels and indicators */}
+        <Html position={[0, 3, 0]} distanceFactor={12}>
+          <div className="bg-green-600/90 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg">
+            Generation: {displayData.generation} | Population: {displayData.populationCount}
           </div>
         </Html>
 
-        <Html position={[0, 3.6, -2]} distanceFactor={10}>
-          <div className="bg-red-500/80 text-white px-2 py-1 rounded text-xs">
-            Environment Pressure
-          </div>
-        </Html>
-
-        {/* Stats panel */}
-        <Html position={[-4.5, 2, 0]} distanceFactor={10}>
+        <Html position={[-6, 2.5, 5]} distanceFactor={12}>
           <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs space-y-1">
-            <div>Avg Fitness: <span className="text-green-400 font-bold">{data.avgFitness}%</span></div>
-            <div>Mutation Rate: <span className="text-yellow-400">{(mutationRate * 100).toFixed(0)}%</span></div>
-            <div>Selection: <span className="text-red-400">{Math.round(selectionPressure * 100)}%</span></div>
-          </div>
-        </Html>
-
-        {/* Legend */}
-        <Html position={[4.5, 2, 0]} distanceFactor={10}>
-          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs space-y-1">
+            <div className="font-bold text-green-400 mb-2">Trait Distribution</div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-300"></div>
-              <span>High Fitness</span>
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span>Green (Camouflaged): {displayData.percentGreen}%</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-emerald-600"></div>
-              <span>Low Fitness</span>
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <span>Red (Visible): {displayData.percentRed}%</span>
             </div>
+            <div className="mt-2 pt-2 border-t border-gray-700">
+              <div>Avg Size: {displayData.averageSize}</div>
+              <div className="text-xs text-gray-400">Smaller = Faster, Harder to Catch</div>
+            </div>
+          </div>
+        </Html>
+
+        <Html position={[6, 2, 0]} distanceFactor={12}>
+          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs">
+            <div className="font-bold text-amber-400 mb-2">Selection Pressure</div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-4 h-4" style={{ background: '#dc2626', clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }}></div>
+              <span>Predator Hunts Visible Organisms</span>
+            </div>
+            <div className="text-green-400 mt-2">
+              ✓ Camouflaged (green) survives more
+            </div>
+            <div className="text-red-400">
+              ✗ Visible (red) gets eaten more
+            </div>
+            <div className="text-blue-400 mt-2">
+              ⚡ Smaller = Faster escape
+            </div>
+          </div>
+        </Html>
+
+        {/* Arrow showing selection pressure */}
+        <group position={[2, 1, 2]}>
+          <mesh rotation={[0, 0, Math.PI / 4]}>
+            <coneGeometry args={[0.2, 0.5, 4]} />
+            <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.5} />
+          </mesh>
+          <mesh position={[0, 0.3, 0]} rotation={[0, 0, Math.PI / 4]}>
+            <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
+            <meshStandardMaterial color="#fbbf24" />
+          </mesh>
+        </group>
+
+        {/* Survival rate indicator */}
+        <Html position={[0, -2, 0]} distanceFactor={15}>
+          <div className="bg-gray-900/90 text-white px-4 py-2 rounded-lg text-sm">
+            Surviving to Next Generation: <span className="font-bold text-yellow-400">{displayData.percentSurviving}%</span>
           </div>
         </Html>
       </group>

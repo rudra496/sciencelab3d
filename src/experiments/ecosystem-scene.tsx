@@ -6,14 +6,13 @@ import { OrbitControls, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 
 export interface EcosystemData {
-  primaryConsumers: number;
-  secondaryConsumers: number;
-  tertiaryConsumers: number;
-  energyFlow: number;
   producerCount: number;
   primaryCount: number;
   secondaryCount: number;
-  tertiaryCount: number;
+  apexCount: number;
+  totalEnergy: number;
+  generation: number;
+  biodiversityIndex: number;
 }
 
 interface EcosystemSceneProps {
@@ -21,185 +20,156 @@ interface EcosystemSceneProps {
   isPlaying?: boolean;
   simulationSpeed?: number;
   resetTrigger?: number;
-  producerPop?: number;
-  primaryPop?: number;
-  secondaryPop?: number;
+  initialProducerPop?: number;
+  initialPrimaryPop?: number;
+  initialSecondaryPop?: number;
+  initialApexPop?: number;
+  reproductionRate?: number;
+  predationRate?: number;
   speed?: number;
 }
 
 interface Organism {
   id: number;
   position: [number, number, number];
-  level: number;
-  type: 'producer' | 'primary' | 'secondary' | 'tertiary';
-  phase: number;
+  velocity: [number, number, number];
+  trophicLevel: 0 | 1 | 2 | 3; // 0=producer, 1=primary, 2=secondary, 3=apex
+  alive: boolean;
+  energy: number;
+  age: number;
 }
 
-// Lotka-Volterra simulation state
-interface LVState {
-  producerPop: number;
-  primaryPop: number;
-  secondaryPop: number;
-  tertiaryPop: number;
-}
+// Trophic level names and colors
+const TROPHIC_INFO = {
+  0: { name: 'Producers', color: '#22c55e', size: 0.15, speed: 0 },
+  1: { name: 'Primary Consumers', color: '#3b82f6', size: 0.25, speed: 0.015 },
+  2: { name: 'Secondary Consumers', color: '#f59e0b', size: 0.35, speed: 0.02 },
+  3: { name: 'Apex Predator', color: '#ef4444', size: 0.5, speed: 0.025 },
+};
 
 export default function EcosystemSceneComponent({
   onDataChange,
   isPlaying = true,
   simulationSpeed = 1,
   resetTrigger = 0,
-  producerPop = 1,
-  primaryPop = 1,
-  secondaryPop = 1,
+  initialProducerPop = 30,
+  initialPrimaryPop = 15,
+  initialSecondaryPop = 6,
+  initialApexPop = 2,
+  reproductionRate = 0.5,
+  predationRate = 0.3,
   speed = 1,
 }: EcosystemSceneProps) {
   const groupRef = useRef<THREE.Group>(null);
   const frameCountRef = useRef(0);
 
   // Physics state in refs
-  const timeRef = useRef(0);
   const organismsRef = useRef<Organism[]>([]);
-  const lvStateRef = useRef<LVState>({
-    producerPop: 1,
-    primaryPop: 1,
-    secondaryPop: 1,
-    tertiaryPop: 0.5,
-  });
+  const populationHistoryRef = useRef<{ p: number; pr: number; s: number; a: number }[]>([]);
+  const timeRef = useRef(0);
+  const generationRef = useRef(0);
 
   // React state for UI updates (throttled)
   const [displayData, setDisplayData] = useState<EcosystemData>({
-    primaryConsumers: 10,
-    secondaryConsumers: 5,
-    tertiaryConsumers: 2,
-    energyFlow: 100,
-    producerCount: 20,
-    primaryCount: 10,
-    secondaryCount: 5,
-    tertiaryCount: 2,
+    producerCount: initialProducerPop,
+    primaryCount: initialPrimaryPop,
+    secondaryCount: initialSecondaryPop,
+    apexCount: initialApexPop,
+    totalEnergy: 1000,
+    generation: 0,
+    biodiversityIndex: 1.5,
   });
 
   // Initialize organisms
   useEffect(() => {
-    const newOrganisms: Organism[] = [];
+    const organisms: Organism[] = [];
+    let id = 0;
 
-    const producerCount = Math.floor(20 * producerPop);
-    const primaryCount = Math.floor(10 * primaryPop);
-    const secondaryCount = Math.floor(5 * secondaryPop);
-    const tertiaryCount = Math.floor(2);
+    // Producers (plants)
+    for (let i = 0; i < initialProducerPop; i++) {
+      organisms.push({
+        id: id++,
+        position: [
+          (Math.random() - 0.5) * 14,
+          0,
+          (Math.random() - 0.5) * 14,
+        ],
+        velocity: [0, 0, 0],
+        trophicLevel: 0,
+        alive: true,
+        energy: 100,
+        age: 0,
+      });
+    }
 
-    for (let i = 0; i < producerCount; i++) {
-      newOrganisms.push({
-        id: i,
+    // Primary consumers (herbivores)
+    for (let i = 0; i < initialPrimaryPop; i++) {
+      organisms.push({
+        id: id++,
         position: [
           (Math.random() - 0.5) * 12,
-          -1.5,
+          0.2,
           (Math.random() - 0.5) * 12,
         ],
-        level: 0,
-        type: 'producer',
-        phase: Math.random() * Math.PI * 2,
+        velocity: [
+          (Math.random() - 0.5) * 0.01,
+          0,
+          (Math.random() - 0.5) * 0.01,
+        ],
+        trophicLevel: 1,
+        alive: true,
+        energy: 80,
+        age: 0,
       });
     }
 
-    for (let i = 0; i < primaryCount; i++) {
-      newOrganisms.push({
-        id: producerCount + i,
+    // Secondary consumers (predators)
+    for (let i = 0; i < initialSecondaryPop; i++) {
+      organisms.push({
+        id: id++,
         position: [
           (Math.random() - 0.5) * 10,
-          (Math.random() - 0.5) * 2,
+          0.3,
           (Math.random() - 0.5) * 10,
         ],
-        level: 1,
-        type: 'primary',
-        phase: Math.random() * Math.PI * 2,
+        velocity: [
+          (Math.random() - 0.5) * 0.015,
+          0,
+          (Math.random() - 0.5) * 0.015,
+        ],
+        trophicLevel: 2,
+        alive: true,
+        energy: 100,
+        age: 0,
       });
     }
 
-    for (let i = 0; i < secondaryCount; i++) {
-      newOrganisms.push({
-        id: producerCount + primaryCount + i,
+    // Apex predators
+    for (let i = 0; i < initialApexPop; i++) {
+      organisms.push({
+        id: id++,
         position: [
           (Math.random() - 0.5) * 8,
-          (Math.random() - 0.5) * 3,
+          0.4,
           (Math.random() - 0.5) * 8,
         ],
-        level: 2,
-        type: 'secondary',
-        phase: Math.random() * Math.PI * 2,
-      });
-    }
-
-    for (let i = 0; i < tertiaryCount; i++) {
-      newOrganisms.push({
-        id: producerCount + primaryCount + secondaryCount + i,
-        position: [
-          (Math.random() - 0.5) * 6,
-          (Math.random() - 0.5) * 4,
-          (Math.random() - 0.5) * 6,
+        velocity: [
+          (Math.random() - 0.5) * 0.02,
+          0,
+          (Math.random() - 0.5) * 0.02,
         ],
-        level: 3,
-        type: 'tertiary',
-        phase: Math.random() * Math.PI * 2,
+        trophicLevel: 3,
+        alive: true,
+        energy: 150,
+        age: 0,
       });
     }
 
-    organismsRef.current = newOrganisms;
+    organismsRef.current = organisms;
+    populationHistoryRef.current = [];
     timeRef.current = 0;
-    lvStateRef.current = {
-      producerPop: producerPop,
-      primaryPop: primaryPop,
-      secondaryPop: secondaryPop,
-      tertiaryPop: 0.5,
-    };
-  }, [resetTrigger, producerPop, primaryPop, secondaryPop]);
-
-  // Get organism colors
-  const getOrganismColor = useCallback((type: string) => {
-    switch (type) {
-      case 'producer': return '#22c55e';
-      case 'primary': return '#3b82f6';
-      case 'secondary': return '#f59e0b';
-      case 'tertiary': return '#ef4444';
-      default: return '#ffffff';
-    }
-  }, []);
-
-  // Get organism size
-  const getOrganismSize = useCallback((type: string) => {
-    switch (type) {
-      case 'producer': return 0.15;
-      case 'primary': return 0.25;
-      case 'secondary': return 0.35;
-      case 'tertiary': return 0.5;
-      default: return 0.2;
-    }
-  }, []);
-
-  // Generate food web connection lines
-  const foodWebLines = useMemo(() => {
-    const lines: [number, number, number][] = [];
-    const producers = organismsRef.current.filter(o => o.type === 'producer');
-    const primaries = organismsRef.current.filter(o => o.type === 'primary');
-    const secondaries = organismsRef.current.filter(o => o.type === 'secondary');
-
-    // Producer to primary connections
-    producers.slice(0, 3).forEach(p => {
-      primaries.slice(0, 2).forEach(pr => {
-        lines.push([p.position[0], p.position[1] + 0.5, p.position[2]]);
-        lines.push([pr.position[0], pr.position[1] - 0.5, pr.position[2]]);
-      });
-    });
-
-    // Primary to secondary connections
-    primaries.slice(0, 2).forEach(p => {
-      secondaries.slice(0, 1).forEach(s => {
-        lines.push([p.position[0], p.position[1] + 0.5, p.position[2]]);
-        lines.push([s.position[0], s.position[1] - 0.5, s.position[2]]);
-      });
-    });
-
-    return lines;
-  }, [resetTrigger]);
+    generationRef.current = 0;
+  }, [resetTrigger, initialProducerPop, initialPrimaryPop, initialSecondaryPop, initialApexPop]);
 
   useFrame((state, delta) => {
     if (!groupRef.current || !isPlaying) return;
@@ -207,76 +177,169 @@ export default function EcosystemSceneComponent({
     frameCountRef.current++;
     timeRef.current += delta * simulationSpeed * speed;
 
-    // Update organism positions (Lotka-Volterra inspired movement)
-    organismsRef.current = organismsRef.current.map((org) => {
-      if (org.type === 'producer') {
-        // Producers sway gently
-        const sway = Math.sin(timeRef.current * 0.5 + org.phase) * 0.1;
-        return {
-          ...org,
-          position: [
-            org.position[0] + sway * 0.1,
-            org.position[1],
-            org.position[2],
-          ],
-        };
+    const organisms = organismsRef.current;
+
+    // Update organisms
+    organisms.forEach((org) => {
+      if (!org.alive) return;
+
+      const info = TROPHIC_INFO[org.trophicLevel];
+
+      // Producers sway, consumers move
+      if (org.trophicLevel > 0) {
+        org.velocity[0] += (Math.random() - 0.5) * 0.005 * simulationSpeed;
+        org.velocity[2] += (Math.random() - 0.5) * 0.005 * simulationSpeed;
+
+        // Clamp velocity
+        const currentSpeed = Math.sqrt(org.velocity[0] ** 2 + org.velocity[2] ** 2);
+        if (currentSpeed > info.speed) {
+          const factor = info.speed / currentSpeed;
+          org.velocity[0] *= factor;
+          org.velocity[2] *= factor;
+        }
+
+        org.position[0] += org.velocity[0] * simulationSpeed;
+        org.position[2] += org.velocity[2] * simulationSpeed;
+
+        // Wrap boundaries
+        const bound = 7;
+        if (org.position[0] > bound) org.position[0] = -bound;
+        if (org.position[0] < -bound) org.position[0] = bound;
+        if (org.position[2] > bound) org.position[2] = -bound;
+        if (org.position[2] < -bound) org.position[2] = bound;
+
+        // Lose energy over time
+        org.energy -= delta * 2 * simulationSpeed;
+
+        // Hunt for prey (consumers eat lower trophic level)
+        if (org.energy < 60) {
+          const preyLevel = org.trophicLevel - 1 as 0 | 1 | 2;
+          const prey = organisms.find(o =>
+            o.alive &&
+            o.trophicLevel === preyLevel &&
+            Math.sqrt(
+              (o.position[0] - org.position[0]) ** 2 +
+              (o.position[2] - org.position[2]) ** 2
+            ) < 0.8
+          );
+
+          if (prey && Math.random() < predationRate) {
+            prey.alive = false;
+            org.energy = Math.min(150, org.energy + 70);
+          }
+        }
+
+        // Die if no energy
+        if (org.energy <= 0) {
+          org.alive = false;
+        }
+      } else {
+        // Producers gain energy from sun
+        org.energy = Math.min(100, org.energy + delta * 10 * simulationSpeed);
       }
 
-      // Consumers orbit
-      const speedMult = (org.level + 1) * 0.005;
-      const angle = timeRef.current * speedMult + org.phase;
-      const radius = 3 + org.level * 1.5;
-      const wobble = Math.sin(timeRef.current * 2 + org.id) * 0.3;
-
-      return {
-        ...org,
-        position: [
-          Math.cos(angle) * radius + wobble,
-          org.position[1],
-          Math.sin(angle) * radius + wobble,
-        ],
-      };
+      org.age += delta * simulationSpeed;
     });
 
-    // Simulate Lotka-Volterra population dynamics
-    const lv = lvStateRef.current;
-    const alpha = 0.5, beta = 0.02, gamma = 0.3, lvDelta = 0.01;
+    // Reproduction
+    if (Math.random() < reproductionRate * delta * simulationSpeed) {
+      const reproducer = organisms.find(o =>
+        o.alive &&
+        o.energy > 100 &&
+        o.trophicLevel > 0 &&
+        Math.random() < 0.1
+      );
 
-    // Producer grows with carrying capacity
-    const dProducer = alpha * lv.producerPop * (1 - lv.producerPop / 2);
+      if (reproducer) {
+        reproducer.energy -= 40;
+        organisms.push({
+          id: organisms.length,
+          position: [
+            reproducer.position[0] + (Math.random() - 0.5) * 2,
+            reproducer.position[1],
+            reproducer.position[2] + (Math.random() - 0.5) * 2,
+          ],
+          velocity: [
+            (Math.random() - 0.5) * 0.01,
+            0,
+            (Math.random() - 0.5) * 0.01,
+          ],
+          trophicLevel: reproducer.trophicLevel,
+          alive: true,
+          energy: 50,
+          age: 0,
+        });
+      }
+    }
 
-    // Primary consumers eat producers
-    const dPrimary = beta * lv.producerPop * lv.primaryPop - gamma * lv.primaryPop;
+    // Producer regrowth
+    const aliveProducers = organisms.filter(o => o.alive && o.trophicLevel === 0);
+    if (aliveProducers.length < initialProducerPop && Math.random() < 0.1 * simulationSpeed) {
+      organisms.push({
+        id: organisms.length,
+        position: [
+          (Math.random() - 0.5) * 14,
+          0,
+          (Math.random() - 0.5) * 14,
+        ],
+        velocity: [0, 0, 0],
+        trophicLevel: 0,
+        alive: true,
+        energy: 50,
+        age: 0,
+      });
+    }
 
-    // Secondary consumers eat primary
-    const dSecondary = lvDelta * lv.primaryPop * lv.secondaryPop - gamma * 0.8 * lv.secondaryPop;
-
-    // Tertiary consumers eat secondary
-    const dTertiary = lvDelta * 0.5 * lv.secondaryPop * lv.tertiaryPop - gamma * 0.6 * lv.tertiaryPop;
-
-    lvStateRef.current = {
-      producerPop: Math.max(0.2, Math.min(2, lv.producerPop + dProducer * delta * 0.1)),
-      primaryPop: Math.max(0.2, Math.min(2, lv.primaryPop + dPrimary * delta * 0.1)),
-      secondaryPop: Math.max(0.2, Math.min(2, lv.secondaryPop + dSecondary * delta * 0.1)),
-      tertiaryPop: Math.max(0.1, Math.min(1, lv.tertiaryPop + dTertiary * delta * 0.1)),
-    };
+    // Record population data every second
+    if (Math.floor(timeRef.current) > Math.floor(timeRef.current - delta * simulationSpeed)) {
+      const counts = {
+        p: organisms.filter(o => o.alive && o.trophicLevel === 0).length,
+        pr: organisms.filter(o => o.alive && o.trophicLevel === 1).length,
+        s: organisms.filter(o => o.alive && o.trophicLevel === 2).length,
+        a: organisms.filter(o => o.alive && o.trophicLevel === 3).length,
+      };
+      populationHistoryRef.current.push(counts);
+      // Keep last 50 data points
+      if (populationHistoryRef.current.length > 50) {
+        populationHistoryRef.current.shift();
+      }
+      generationRef.current++;
+    }
 
     // Update React state every 8 frames
     if (frameCountRef.current % 8 === 0) {
-      const producers = organismsRef.current.filter(o => o.type === 'producer').length;
-      const primaries = organismsRef.current.filter(o => o.type === 'primary').length;
-      const secondaries = organismsRef.current.filter(o => o.type === 'secondary').length;
-      const tertiaries = organismsRef.current.filter(o => o.type === 'tertiary').length;
+      const alive = organisms.filter(o => o.alive);
+      const counts = {
+        producers: alive.filter(o => o.trophicLevel === 0).length,
+        primary: alive.filter(o => o.trophicLevel === 1).length,
+        secondary: alive.filter(o => o.trophicLevel === 2).length,
+        apex: alive.filter(o => o.trophicLevel === 3).length,
+      };
+
+      // Calculate biodiversity (Shannon index approximation)
+      const total = alive.length;
+      const proportions = [
+        counts.producers / total,
+        counts.primary / total,
+        counts.secondary / total,
+        counts.apex / total,
+      ].filter(p => p > 0);
+      const biodiversity = -proportions.reduce((sum, p) => sum + p * Math.log(p), 0);
+
+      // Calculate total energy (10% transfer rule)
+      const totalEnergy = counts.producers * 100 +
+        counts.primary * 10 +
+        counts.secondary * 1 +
+        counts.apex * 0.1;
 
       const newData: EcosystemData = {
-        primaryConsumers: primaries,
-        secondaryConsumers: secondaries,
-        tertiaryConsumers: tertiaries,
-        energyFlow: lvStateRef.current.producerPop * 100,
-        producerCount: producers,
-        primaryCount: primaries,
-        secondaryCount: secondaries,
-        tertiaryCount: tertiaries,
+        producerCount: counts.producers,
+        primaryCount: counts.primary,
+        secondaryCount: counts.secondary,
+        apexCount: counts.apex,
+        totalEnergy: Math.round(totalEnergy),
+        generation: generationRef.current,
+        biodiversityIndex: Math.round(biodiversity * 100) / 100,
       };
 
       setDisplayData(newData);
@@ -284,134 +347,231 @@ export default function EcosystemSceneComponent({
     }
   });
 
+  // Population graph data
+  const populationGraphData = useMemo(() => {
+    const history = populationHistoryRef.current;
+    if (history.length < 2) return [];
+
+    const maxPop = Math.max(...history.map(h => Math.max(h.p, h.pr, h.s, h.a)), 1);
+    const points: [number, number, number][] = [];
+    const xStart = -5;
+    const zStart = -5;
+
+    // Each trophic level gets a different line
+    return [
+      history.map((h, i) => [xStart + i * 0.2, 2, zStart + (h.p / maxPop) * 3] as [number, number, number]),
+      history.map((h, i) => [xStart + i * 0.2, 1.5, zStart + (h.pr / maxPop) * 3] as [number, number, number]),
+      history.map((h, i) => [xStart + i * 0.2, 1, zStart + (h.s / maxPop) * 3] as [number, number, number]),
+      history.map((h, i) => [xStart + i * 0.2, 0.5, zStart + (h.a / maxPop) * 3] as [number, number, number]),
+    ];
+  }, [displayData]);
+
   // Memoized organism rendering
   const organismElements = useMemo(() => {
-    return organismsRef.current.map((org) => (
-      <group key={org.id} position={org.position}>
-        <mesh>
-          <sphereGeometry args={[getOrganismSize(org.type), 12, 12]} />
-          <meshStandardMaterial
-            color={getOrganismColor(org.type)}
-            emissive={getOrganismColor(org.type)}
-            emissiveIntensity={0.2}
-            roughness={0.3}
-            metalness={0.5}
-          />
-        </mesh>
-        {/* Glow effect for tertiary consumers */}
-        {org.type === 'tertiary' && (
+    return organismsRef.current
+      .filter(o => o.alive)
+      .map((org) => (
+        <group key={org.id} position={org.position}>
           <mesh>
-            <sphereGeometry args={[getOrganismSize(org.type) * 1.3, 8, 8]} />
+            <sphereGeometry args={[TROPHIC_INFO[org.trophicLevel].size, 12, 12]} />
             <meshStandardMaterial
-              color={getOrganismColor(org.type)}
-              transparent
-              opacity={0.2}
+              color={TROPHIC_INFO[org.trophicLevel].color}
+              emissive={TROPHIC_INFO[org.trophicLevel].color}
+              emissiveIntensity={0.3}
+              roughness={0.5}
+              metalness={0.3}
             />
           </mesh>
-        )}
-      </group>
-    ));
-  }, [resetTrigger, getOrganismColor, getOrganismSize]);
+          {/* Energy indicator glow */}
+          {org.energy > 100 && (
+            <mesh>
+              <sphereGeometry args={[TROPHIC_INFO[org.trophicLevel].size * 1.3, 8, 8]} />
+              <meshBasicMaterial
+                color={TROPHIC_INFO[org.trophicLevel].color}
+                transparent
+                opacity={0.3}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
+          )}
+        </group>
+      ));
+  }, [displayData]);
 
   return (
     <>
       <ambientLight intensity={0.5} />
-      <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
-      <pointLight position={[0, 5, 0]} intensity={0.3} color="#14b8a6" />
-      <pointLight position={[5, 3, 5]} intensity={0.2} color="#3b82f6" />
+      <directionalLight position={[10, 15, 10]} intensity={0.8} castShadow />
+      <pointLight position={[0, 8, 0]} intensity={0.3} color="#22c55e" />
 
-      <OrbitControls enableDamping dampingFactor={0.05} />
+      <OrbitControls enableDamping dampingFactor={0.05} maxPolarAngle={Math.PI / 2.5} />
 
       <group ref={groupRef}>
-        {/* Ground plane */}
-        <mesh position={[0, -2, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        {/* Ground */}
+        <mesh position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[16, 16]} />
-          <meshStandardMaterial color="#064e3b" roughness={0.95} metalness={0.1} />
+          <meshStandardMaterial color="#15803d" roughness={0.95} metalness={0.05} />
         </mesh>
 
-        {/* Energy flow visualization - pyramid */}
-        <Line
-          points={[
-            [0, -1.8, 0],
-            [3, 0, 0],
-            [3, 0, 3],
-            [0, 0, 3],
-            [0, -1.8, 0],
-            [3, 0, 0],
-            [3, 0, 3],
-            [0, 0, 3],
-          ]}
-          color="#22c55e"
-          lineWidth={1}
-          opacity={0.3}
-          transparent
-        />
-
+        {/* Organisms */}
         {organismElements}
 
-        {/* Population graph - energy pyramid */}
-        <group position={[-6, 0, -6]}>
-          <mesh position={[0, -1 + displayData.producerCount * 0.05, 0]}>
-            <boxGeometry args={[2, displayData.producerCount * 0.1, 0.2]} />
-            <meshStandardMaterial color="#22c55e" transparent opacity={0.7} />
-          </mesh>
-          <mesh position={[0, 0.2 + displayData.primaryCount * 0.05, 0]}>
-            <boxGeometry args={[1.5, displayData.primaryCount * 0.1, 0.2]} />
-            <meshStandardMaterial color="#3b82f6" transparent opacity={0.7} />
-          </mesh>
-          <mesh position={[0, 1.2 + displayData.secondaryCount * 0.05, 0]}>
-            <boxGeometry args={[1, displayData.secondaryCount * 0.1, 0.2]} />
-            <meshStandardMaterial color="#f59e0b" transparent opacity={0.7} />
-          </mesh>
-          <mesh position={[0, 2 + displayData.tertiaryCount * 0.05, 0]}>
-            <boxGeometry args={[0.6, displayData.tertiaryCount * 0.1, 0.2]} />
-            <meshStandardMaterial color="#ef4444" transparent opacity={0.7} />
+        {/* Population graph */}
+        <group position={[-4, 4, 4]} rotation={[-Math.PI / 3, 0, 0]}>
+          {/* Graph background */}
+          <mesh position={[3, 1, -1.5]}>
+            <boxGeometry args={[12, 3, 0.1]} />
+            <meshStandardMaterial color="#1f2937" transparent opacity={0.9} />
           </mesh>
 
-          <Html position={[0, 3.5, 0]} distanceFactor={10}>
-            <div className="bg-gray-900/80 text-white px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
-              Energy Pyramid
+          {/* Population lines */}
+          {populationGraphData[0] && populationGraphData[0].length > 1 && (
+            <Line points={populationGraphData[0]} color="#22c55e" lineWidth={2} />
+          )}
+          {populationGraphData[1] && populationGraphData[1].length > 1 && (
+            <Line points={populationGraphData[1]} color="#3b82f6" lineWidth={2} />
+          )}
+          {populationGraphData[2] && populationGraphData[2].length > 1 && (
+            <Line points={populationGraphData[2]} color="#f59e0b" lineWidth={2} />
+          )}
+          {populationGraphData[3] && populationGraphData[3].length > 1 && (
+            <Line points={populationGraphData[3]} color="#ef4444" lineWidth={2} />
+          )}
+
+          <Html position={[9, 2.5, -1.5]} distanceFactor={15}>
+            <div className="bg-gray-900/90 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
+              Population Over Time
             </div>
           </Html>
         </group>
 
-        {/* Legend */}
-        <Html position={[5, 3, 0]} distanceFactor={10}>
-          <div className="bg-gray-900/90 text-white px-3 py-2 rounded-lg space-y-1.5 text-xs">
-            <div className="font-bold text-teal-400 mb-2">Trophic Levels</div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
-              <span>Producers (plants)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50"></div>
-              <span>Primary (herbivores)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-amber-500 shadow-lg shadow-amber-500/50"></div>
-              <span>Secondary (carnivores)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500 shadow-lg shadow-red-500/50"></div>
-              <span>Tertiary (apex)</span>
+        {/* Energy flow arrows */}
+        <group position={[6, 1, 0]}>
+          {/* Sun to producers */}
+          <mesh position={[0, 4, 0]}>
+            <sphereGeometry args={[0.3, 16, 16]} />
+            <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={1} />
+          </mesh>
+          <Line
+            points={[[0, 3.5, 0], [0, 2, 0]]}
+            color="#fbbf24"
+            lineWidth={2}
+            dashed
+          />
+          <Html position={[0.5, 3, 0]} distanceFactor={12}>
+            <div className="text-yellow-400 text-xs font-bold">100%</div>
+          </Html>
+
+          {/* Producers to primary */}
+          <Line
+            points={[[0, 1.5, 0], [0, 0.5, 0]]}
+            color="#22c55e"
+            lineWidth={2}
+          />
+          <Html position={[0.5, 1, 0]} distanceFactor={12}>
+            <div className="text-green-400 text-xs font-bold">10%</div>
+          </Html>
+
+          {/* Primary to secondary */}
+          <Line
+            points={[[0, 0, 0], [0, -1, 0]]}
+            color="#3b82f6"
+            lineWidth={2}
+          />
+          <Html position={[0.5, -0.5, 0]} distanceFactor={12}>
+            <div className="text-blue-400 text-xs font-bold">1%</div>
+          </Html>
+
+          {/* Secondary to apex */}
+          <Line
+            points={[[0, -1.5, 0], [0, -2.5, 0]]}
+            color="#f59e0b"
+            lineWidth={2}
+          />
+          <Html position={[0.5, -2, 0]} distanceFactor={12}>
+            <div className="text-amber-400 text-xs font-bold">0.1%</div>
+          </Html>
+        </group>
+
+        {/* Food web diagram */}
+        <Html position={[-6, 4, 0]} distanceFactor={12}>
+          <div className="bg-gray-900/95 text-white px-3 py-2 rounded text-xs">
+            <div className="font-bold mb-2 text-purple-400">Food Web</div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                <span>Producers (Plants)</span>
+              </div>
+              <div className="ml-4">↓</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span>Primary (Herbivores)</span>
+              </div>
+              <div className="ml-4">↓</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                <span>Secondary (Predators)</span>
+              </div>
+              <div className="ml-4">↓</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                <span>Apex (Top Predator)</span>
+              </div>
             </div>
           </div>
         </Html>
 
-        {/* Energy flow label */}
-        <Html position={[0, -3.5, 0]} distanceFactor={10}>
-          <div className="bg-teal-500/90 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg">
-            Energy Flow: {Math.round(displayData.energyFlow)}% • 10% rule
+        {/* Main stats label */}
+        <Html position={[0, 3.5, 0]} distanceFactor={12}>
+          <div className="bg-teal-600/90 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg">
+            Generation: {displayData.generation} | Total Energy: {displayData.totalEnergy}
+          </div>
+        </Html>
+
+        {/* Population breakdown */}
+        <Html position={[5, 3, -4]} distanceFactor={12}>
+          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs space-y-1">
+            <div className="font-bold mb-2">Population</div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span>Producers: {displayData.producerCount}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span>Herbivores: {displayData.primaryCount}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+              <span>Predators: {displayData.secondaryCount}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-red-500"></div>
+              <span>Apex: {displayData.apexCount}</span>
+            </div>
+          </div>
+        </Html>
+
+        {/* Biodiversity indicator */}
+        <Html position={[-5, 2.5, -5]} distanceFactor={12}>
+          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs">
+            <div className="font-bold text-purple-400">Biodiversity Index</div>
+            <div className="text-lg font-bold">{displayData.biodiversityIndex}</div>
+            <div className="text-xs text-gray-400">
+              {displayData.biodiversityIndex > 1.3 ? 'Stable' : displayData.biodiversityIndex > 0.8 ? 'Moderate' : 'Low'}
+            </div>
           </div>
         </Html>
 
         {/* Lotka-Volterra info */}
-        <Html position={[-5, 4, 0]} distanceFactor={10}>
-          <div className="bg-gray-900/90 text-white px-3 py-2 rounded-lg text-xs max-w-48">
-            <div className="font-bold text-purple-400 mb-1">Lotka-Volterra</div>
+        <Html position={[5, 2.5, 4]} distanceFactor={12}>
+          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs">
+            <div className="font-bold text-cyan-400 mb-1">Lotka-Volterra Dynamics</div>
             <div className="text-gray-300">
-              dx/dt = αx - βxy<br />
-              dy/dt = δxy - γy
+              Prey population grows →<br />
+              Predator population grows →<br />
+              Prey declines →<br />
+              Predator declines →<br />
+              Cycle repeats
             </div>
           </div>
         </Html>

@@ -1,171 +1,171 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import PhotosynthesisSceneComponent, { PhotosynthesisData } from "./photosynthesis-scene";
 import {
   ExperimentContainer,
-  SimulationController,
   FloatingControlPanel,
+  ControlGroup,
+  ControlSlider,
+  DataGrid,
+  SimulationController,
   DataPanel,
-} from '@/components/experiment-ui';
-import { ControlGroup, ControlSlider, DataGrid } from '@/components/experiment-ui/ExperimentControls';
-import PhotosynthesisSceneComponent, { PhotosynthesisData } from './photosynthesis-scene';
+  ControlDropdown,
+  ControlCheckbox,
+  ControlButton,
+} from "@/components/experiment-ui";
 
 export default function PhotosynthesisPage() {
   const router = useRouter();
+  const [showDataPanel, setShowDataPanel] = useState(true);
+
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
-  const [showControls, setShowControls] = useState(true);
-  const [showData, setShowData] = useState(false);
 
   const [lightIntensity, setLightIntensity] = useState(1);
   const [co2Level, setCo2Level] = useState(1);
-  const [waterLevel, setWaterLevel] = useState(1);
+  const [stepMode, setStepMode] = useState<"auto" | "step">("auto");
+  const [showLabels, setShowLabels] = useState(true);
 
-  const [photosynthesisData, setPhotosynthesisData] = useState<PhotosynthesisData>({
-    lightReactionRate: 1,
-    calvinCycleRate: 0.8,
+  const [currentData, setCurrentData] = useState<PhotosynthesisData>({
+    phase: "Light Reactions",
+    step: 1,
+    stepDescription: "Step 1: Sunlight hits chloroplast. Water molecules (H₂O) enter from below.",
+    o2Produced: 0,
     glucoseProduced: 0,
-    oxygenReleased: 0,
+    atpCount: 0,
+    nadphCount: 0,
   });
 
-  const handlePlayPause = useCallback(() => {
-    setIsPlaying((p) => !p);
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setResetTrigger((t) => t + 1);
+  const handlePlayPause = () => setIsPlaying((p) => !p);
+  const handleReset = () => {
+    setResetTrigger((n) => n + 1);
+    setIsPlaying(true);
+    setSimulationSpeed(1);
     setLightIntensity(1);
     setCo2Level(1);
-    setWaterLevel(1);
-    setPhotosynthesisData({
-      lightReactionRate: 1,
-      calvinCycleRate: 0.8,
-      glucoseProduced: 0,
-      oxygenReleased: 0,
-    });
-  }, []);
+    setStepMode("auto");
+  };
 
-  const handleSpeedChange = useCallback((speed: number) => {
-    setSimulationSpeed(speed);
-  }, []);
+  const stepOptions = [
+    { label: "Auto Play", value: "auto" as const },
+    { label: "Manual Step", value: "step" as const },
+  ];
 
-  const handleDataChange = useCallback((data: PhotosynthesisData) => {
-    setPhotosynthesisData(data);
-  }, []);
+  const parameterControls = (
+    <div className="space-y-4">
+      <ControlGroup title="Environmental Controls">
+        <ControlSlider
+          label="Light Intensity"
+          value={lightIntensity}
+          unit=""
+          min={0}
+          max={2}
+          step={0.1}
+          color="#fbbf24"
+          onChange={setLightIntensity}
+          decimals={1}
+        />
+        <ControlSlider
+          label="CO₂ Concentration"
+          value={co2Level}
+          unit=""
+          min={0}
+          max={2}
+          step={0.1}
+          color="#3b82f6"
+          onChange={setCo2Level}
+          decimals={1}
+        />
+      </ControlGroup>
 
-  const parameterControls = useMemo(
-    () => (
-      <>
-        <ControlGroup title="Environmental Factors">
-          <ControlSlider
-            label="Light Intensity"
-            value={lightIntensity}
-            min={0}
-            max={2}
-            step={0.1}
-            onChange={setLightIntensity}
-              />
-          <ControlSlider
-            label="CO₂ Level"
-            value={co2Level}
-            min={0}
-            max={2}
-            step={0.1}
-            onChange={setCo2Level}
-              />
-          <ControlSlider
-            label="Water Level"
-            value={waterLevel}
-            min={0}
-            max={2}
-            step={0.1}
-            onChange={setWaterLevel}
-              />
-        </ControlGroup>
+      <ControlGroup title="Display Settings">
+        <ControlDropdown
+          label="Step Mode"
+          value={stepMode}
+          options={stepOptions}
+          onChange={setStepMode}
+          color="#22c55e"
+        />
+        <ControlCheckbox
+          label="Show Labels"
+          checked={showLabels}
+          onChange={setShowLabels}
+          color="#22c55e"
+        />
+      </ControlGroup>
 
-        <button
-          onClick={() => router.push('/experiments/photosynthesis/details')}
-          className="w-full mt-4 px-4 py-2 bg-[#22c55e]/20 hover:bg-[#22c55e]/30 text-[#22c55e] rounded-lg border border-[#22c55e]/50 transition-colors text-sm font-medium"
-        >
-          View Details
-        </button>
-      </>
-    ),
-    [lightIntensity, co2Level, waterLevel, router]
+      <button
+        onClick={() => router.push("/experiments/photosynthesis/details")}
+        className="w-full py-2.5 bg-gradient-to-r from-green-100 to-green-200 hover:from-green-200 hover:to-green-300 text-green-700 font-medium text-sm rounded-lg transition-all border border-green-300/50 flex items-center justify-center gap-2"
+      >
+        📖 View Experiment Details
+      </button>
+    </div>
   );
 
-  const dataContent = useMemo(
-    () => (
+  const dataPanelContent = (
+    <>
+      <div className="mb-3 p-2.5 bg-gray-800/50 rounded-lg">
+        <div className="text-center font-bold text-green-400 text-sm mb-1">
+          {currentData.phase}
+        </div>
+        <div className="text-center text-gray-300 text-xs">
+          Step {currentData.step}/3
+        </div>
+      </div>
+
       <DataGrid
         data={{
-          lightReaction: { value: photosynthesisData.lightReactionRate * 100, unit: '%', color: '#fbbf24', decimals: 0 },
-          calvinCycle: { value: photosynthesisData.calvinCycleRate * 100, unit: '%', color: '#22c55e', decimals: 0 },
-          glucose: { value: photosynthesisData.glucoseProduced, unit: 'units', color: '#a855f7', decimals: 0 },
-          oxygen: { value: photosynthesisData.oxygenReleased, unit: 'units', color: '#ef4444', decimals: 0 },
+          o2: { value: currentData.o2Produced, unit: "units", color: "#ef4444", decimals: 0 },
+          glucose: { value: currentData.glucoseProduced, unit: "units", color: "#a855f7", decimals: 0 },
+          atp: { value: currentData.atpCount, unit: "count", color: "#fbbf24", decimals: 0 },
+          nadph: { value: currentData.nadphCount, unit: "count", color: "#22c55e", decimals: 0 },
         }}
         columns={2}
       />
-    ),
-    [photosynthesisData]
-  );
 
-  const dataPanel = useMemo(
-    () => (
-      <DataPanel isVisible={showData} onToggle={() => setShowData((d) => !d)}>
-        {dataContent}
-      </DataPanel>
-    ),
-    [showData, dataContent]
+      <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
+        <div className="text-xs text-gray-300 leading-relaxed">
+          {currentData.stepDescription}
+        </div>
+      </div>
+    </>
   );
 
   return (
-    <div className="w-full h-screen relative">
+    <>
       <ExperimentContainer
         title="Photosynthesis"
         description="Explore light reactions and Calvin cycle in chloroplasts"
-        cameraPosition={[0, 2, 10]}
+        cameraPosition={[0, 5, 12]}
         backgroundColor="#050510"
         controls={null}
-        dataPanel={dataPanel}
+        dataPanel={null}
       >
         <PhotosynthesisSceneComponent
-          onDataChange={handleDataChange}
+          onDataChange={setCurrentData}
           isPlaying={isPlaying}
           simulationSpeed={simulationSpeed}
           resetTrigger={resetTrigger}
           lightIntensity={lightIntensity}
           co2Level={co2Level}
-          waterLevel={waterLevel}
+          stepMode={stepMode}
+          showLabels={showLabels}
         />
       </ExperimentContainer>
 
-      <SimulationController
-        isPlaying={isPlaying}
-        onPlayPause={handlePlayPause}
-        onReset={handleReset}
-        speed={simulationSpeed}
-        onSpeedChange={handleSpeedChange}
-        timeElapsed={0}
-      />
+      <SimulationController isPlaying={isPlaying} onPlayPause={handlePlayPause} onReset={handleReset} speed={simulationSpeed} onSpeedChange={setSimulationSpeed} />
 
-      {showControls && (
-        <FloatingControlPanel
-            initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
-        >
-          {parameterControls}
-        </FloatingControlPanel>
-      )}
+      <FloatingControlPanel title="🌱 Photosynthesis Controls" initialPosition={{ x: 20, y: 80 }}>
+        {parameterControls}
+      </FloatingControlPanel>
 
-      {!showControls && (
-        <button
-          onClick={() => setShowControls(true)}
-          className="fixed top-20 right-4 z-20 px-4 py-2 bg-[#22c55e]/20 hover:bg-[#22c55e]/30 text-[#22c55e] rounded-lg border border-[#22c55e]/50 transition-colors text-sm font-medium"
-        >
-          Show Controls
-        </button>
-      )}
-    </div>
+      <DataPanel isVisible={showDataPanel} onToggle={() => setShowDataPanel(!showDataPanel)}>
+        {dataPanelContent}
+      </DataPanel>
+    </>
   );
 }

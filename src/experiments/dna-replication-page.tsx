@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
@@ -18,18 +18,35 @@ export default function DNAReplicationPage() {
   const [resetTrigger, setResetTrigger] = useState(0);
   const [showControls, setShowControls] = useState(true);
   const [showData, setShowData] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(false);
 
   const [speed, setSpeed] = useState(1);
-  const [showHelicase, setShowHelicase] = useState(true);
-  const [showPolymerase, setShowPolymerase] = useState(true);
-  const [showPrimase, setShowPrimase] = useState(true);
-  const [stage, setStage] = useState(0);
+  const [showLabels, setShowLabels] = useState(true);
+  const [step, setStep] = useState(0);
+  const autoPlayRef = useRef<NodeJS.Timeout | null>(null);
 
   const [dnaData, setDnaData] = useState<DNAReplicationData>({
-    stage: 'Initiation',
-    unwoundPercent: 0,
+    step: 'Intact DNA',
+    enzymes: [],
     nucleotidesAdded: 0,
+    description: 'Double-stranded DNA molecule rotating intact',
   });
+
+  // Auto-play through steps
+  useEffect(() => {
+    if (autoPlay && isPlaying) {
+      autoPlayRef.current = setTimeout(() => {
+        if (step < 4) {
+          setStep(step + 1);
+        } else {
+          setAutoPlay(false);
+        }
+      }, 5000 / simulationSpeed);
+    }
+    return () => {
+      if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
+    };
+  }, [autoPlay, step, isPlaying, simulationSpeed]);
 
   const handlePlayPause = useCallback(() => {
     setIsPlaying((p) => !p);
@@ -38,11 +55,15 @@ export default function DNAReplicationPage() {
   const handleReset = useCallback(() => {
     setResetTrigger((t) => t + 1);
     setSpeed(1);
-    setShowHelicase(true);
-    setShowPolymerase(true);
-    setShowPrimase(true);
-    setStage(0);
-    setDnaData({ stage: 'Initiation', unwoundPercent: 0, nucleotidesAdded: 0 });
+    setShowLabels(true);
+    setStep(0);
+    setAutoPlay(false);
+    setDnaData({
+      step: 'Intact DNA',
+      enzymes: [],
+      nucleotidesAdded: 0,
+      description: 'Double-stranded DNA molecule rotating intact',
+    });
   }, []);
 
   const handleSpeedChange = useCallback((s: number) => {
@@ -64,53 +85,45 @@ export default function DNAReplicationPage() {
             max={3}
             step={0.1}
             onChange={setSpeed}
-              />
+          />
           <div className="mt-3 space-y-2">
-            <label className="text-xs text-gray-400 block mb-2">Replication Stage</label>
-            {['Initiation', 'Elongation', 'Termination'].map((s, i) => (
+            <label className="text-xs text-gray-400 block mb-2">Replication Step</label>
+            {['Intact DNA', 'Helicase Unzips', 'Primase', 'DNA Polymerase', 'Two Daughter DNA'].map((s, i) => (
               <button
                 key={s}
-                onClick={() => setStage(i)}
+                onClick={() => setStep(i)}
                 className={`w-full px-3 py-2 rounded text-sm transition-colors ${
-                  stage === i
-                    ? 'bg-[#3b82f6] text-white'
+                  step === i
+                    ? 'bg-[#3b82f6] text-white font-medium'
                     : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                {s}
+                {i + 1}. {s}
               </button>
             ))}
           </div>
+          <button
+            onClick={() => setAutoPlay(!autoPlay)}
+            className={`w-full mt-3 px-3 py-2 rounded text-sm font-medium transition-colors ${
+              autoPlay
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            {autoPlay ? '⏸ Auto Playing' : '▶ Auto Play Steps'}
+          </button>
         </ControlGroup>
 
-        <ControlGroup title="Enzymes">
+        <ControlGroup title="Display Options">
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={showHelicase}
-                onChange={(e) => setShowHelicase(e.target.checked)}
+                checked={showLabels}
+                onChange={(e) => setShowLabels(e.target.checked)}
                 className="w-4 h-4 accent-[#3b82f6]"
               />
-              <span className="text-gray-300">Helicase</span>
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={showPolymerase}
-                onChange={(e) => setShowPolymerase(e.target.checked)}
-                className="w-4 h-4 accent-[#3b82f6]"
-              />
-              <span className="text-gray-300">Polymerase</span>
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={showPrimase}
-                onChange={(e) => setShowPrimase(e.target.checked)}
-                className="w-4 h-4 accent-[#3b82f6]"
-              />
-              <span className="text-gray-300">Primase</span>
+              <span className="text-gray-300">Show Labels</span>
             </label>
           </div>
         </ControlGroup>
@@ -123,16 +136,17 @@ export default function DNAReplicationPage() {
         </button>
       </>
     ),
-    [speed, stage, showHelicase, showPolymerase, showPrimase, router]
+    [speed, step, showLabels, autoPlay, router]
   );
 
   const dataContent = useMemo(
     () => (
       <DataGrid
         data={{
-          stage: { value: 0, unit: dnaData.stage, color: '#3b82f6', decimals: 0 },
-          unwound: { value: dnaData.unwoundPercent, unit: '%', color: '#06b6d4', decimals: 0 },
-          nucleotides: { value: dnaData.nucleotidesAdded, unit: 'bases', color: '#8b5cf6', decimals: 0 },
+          step: { value: 0, unit: dnaData.step, color: '#3b82f6', decimals: 0 },
+          enzymes: { value: dnaData.enzymes.length, unit: dnaData.enzymes.join(', ') || 'None', color: '#f59e0b', decimals: 0 },
+          nucleotides: { value: dnaData.nucleotidesAdded, unit: 'bases', color: '#22c55e', decimals: 0 },
+          description: { value: 0, unit: dnaData.description, color: '#8b5cf6', decimals: 0 },
           status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
@@ -154,8 +168,8 @@ export default function DNAReplicationPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="DNA Replication"
-        description="Watch DNA unzip and replicate with enzymes"
-        cameraPosition={[0, 0, 12]}
+        description="Step-by-step visualization of DNA replication with enzymes"
+        cameraPosition={[0, 0, 14]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={dataPanel}
@@ -166,10 +180,8 @@ export default function DNAReplicationPage() {
           simulationSpeed={simulationSpeed}
           resetTrigger={resetTrigger}
           speed={speed}
-          showHelicase={showHelicase}
-          showPolymerase={showPolymerase}
-          showPrimase={showPrimase}
-          stage={stage}
+          showLabels={showLabels}
+          step={step}
         />
       </ExperimentContainer>
 
@@ -184,7 +196,7 @@ export default function DNAReplicationPage() {
 
       {showControls && (
         <FloatingControlPanel
-            initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
+          initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
         >
           {parameterControls}
         </FloatingControlPanel>

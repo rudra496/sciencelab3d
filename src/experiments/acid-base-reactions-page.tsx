@@ -1,121 +1,204 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { AcidBaseReactionsSceneComponent, AcidBaseReactionsData } from "@/experiments/acid-base-reactions-scene";
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
+  SimulationController,
   FloatingControlPanel,
+  DataPanel,
   ControlGroup,
   ControlSlider,
   DataGrid,
-  SimulationController,
-  DataPanel,
-} from "@/components/experiment-ui";
+} from '@/components/experiment-ui';
+import AcidBaseReactionsSceneComponent, { AcidBaseReactionsData } from './acid-base-reactions-scene';
 
 export default function AcidBaseReactionsPage() {
   const router = useRouter();
-  const [data, setData] = useState<AcidBaseReactionsData | null>(null);
-  const [showDataPanel, setShowDataPanel] = useState(true);
-
-  // Simulation
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
+  const [showDataPanel, setShowDataPanel] = useState(true);
 
-  // Physics
-  const [acidStrength, setAcidStrength] = useState(5);
-  const [baseStrength, setBaseStrength] = useState(5);
-  const [temperature, setTemperature] = useState(298);
+  const [acidConcentration, setAcidConcentration] = useState(5);
+  const [baseConcentration, setBaseConcentration] = useState(5);
+  const [acidType, setAcidType] = useState<'HCl' | 'H2SO4' | 'HNO3'>('HCl');
+  const [stepMode, setStepMode] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
-  const handlePlayPause = () => setIsPlaying((p) => !p);
-  const handleReset = () => {
-    setResetTrigger((n) => n + 1);
-    setIsPlaying(true);
-    setSimulationSpeed(1);
-  };
+  const [data, setData] = useState<AcidBaseReactionsData>({
+    pH: 1,
+    temperature: 298,
+    reactionProgress: 0,
+    productsFormed: 0,
+    currentStep: 1,
+  });
 
-  // === PARAMETER CONTROLS ===
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying((p) => !p);
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setResetTrigger((t) => t + 1);
+    setAcidConcentration(5);
+    setBaseConcentration(5);
+    setAcidType('HCl');
+    setCurrentStep(1);
+  }, []);
+
+  const handleSpeedChange = useCallback((s: number) => {
+    setSimulationSpeed(s);
+  }, []);
+
+  const handleDataChange = useCallback((newData: AcidBaseReactionsData) => {
+    setData(newData);
+  }, []);
+
+  const handleMix = useCallback(() => {
+    if (stepMode && currentStep < 5) {
+      setCurrentStep((s) => s + 1);
+    }
+  }, [stepMode, currentStep]);
+
   const parameterControls = (
     <div className="space-y-4">
-      <ControlGroup title="Reaction Parameters">
+      <ControlGroup title="Concentrations">
         <ControlSlider
-          label="Acid Strength"
-          value={acidStrength}
+          label="Acid Concentration"
+          value={acidConcentration}
           unit="M"
           min={1}
           max={10}
           step={0.5}
-          color="#ec4899"
-          onChange={setAcidStrength}
+          color="#ef4444"
+          onChange={setAcidConcentration}
           decimals={1}
         />
         <ControlSlider
-          label="Base Strength"
-          value={baseStrength}
+          label="Base Concentration"
+          value={baseConcentration}
           unit="M"
           min={1}
           max={10}
           step={0.5}
           color="#3b82f6"
-          onChange={setBaseStrength}
+          onChange={setBaseConcentration}
           decimals={1}
-        />
-        <ControlSlider
-          label="Temperature"
-          value={temperature}
-          unit="K"
-          min={273}
-          max={373}
-          step={1}
-          color="#ef4444"
-          onChange={setTemperature}
-          decimals={0}
         />
       </ControlGroup>
 
+      <ControlGroup title="Acid Type">
+        <div className="grid grid-cols-3 gap-2">
+          {(['HCl', 'H2SO4', 'HNO3'] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => setAcidType(type)}
+              className={`py-2 px-2 rounded-lg text-xs font-medium transition-all ${
+                acidType === type
+                  ? 'bg-red-600 text-white'
+                  : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+              }`}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+      </ControlGroup>
+
+      <ControlGroup title="Mode">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => { setStepMode(false); setCurrentStep(1); }}
+            className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              !stepMode
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+            }`}
+          >
+            Auto
+          </button>
+          <button
+            onClick={() => { setStepMode(true); setCurrentStep(1); }}
+            className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              stepMode
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+            }`}
+          >
+            Step
+          </button>
+        </div>
+      </ControlGroup>
+
+      {stepMode && (
+        <button
+          onClick={handleMix}
+          disabled={currentStep >= 5}
+          className="w-full py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-medium text-sm rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {currentStep >= 5 ? '✓ Complete' : `Step ${currentStep}/5 - Mix`}
+        </button>
+      )}
+
       <button
-        onClick={() => router.push("/experiments/acid-base-reactions/details")}
-        className="w-full py-2.5 bg-gradient-to-r from-pink-100 to-pink-200 hover:from-pink-200 hover:to-pink-300 text-pink-700 font-medium text-sm rounded-lg transition-all border border-pink-300/50 flex items-center justify-center gap-2"
+        onClick={() => router.push('/experiments/acid-base-reactions/details')}
+        className="w-full py-2.5 bg-gradient-to-r from-red-100 to-red-200 hover:from-red-200 hover:to-red-300 text-red-700 font-medium text-sm rounded-lg transition-all border border-red-300/50 flex items-center justify-center gap-2"
       >
         📖 View Experiment Details
       </button>
     </div>
   );
 
-  // === DATA PANEL CONTENT ===
-  const dataPanelContent = data ? (
-    <DataGrid
-      data={{
-        pH: { value: data.pH, unit: "", color: data.pH > 7 ? "#3b82f6" : data.pH < 7 ? "#ef4444" : "#22c55e", decimals: 2 },
-        numAcid: { value: data.numAcid, unit: "mols", color: "#ef4444", decimals: 0 },
-        numBase: { value: data.numBase, unit: "mols", color: "#3b82f6", decimals: 0 },
-        numProduct: { value: data.numProduct, unit: "mols", color: "#22c55e", decimals: 0 },
-        temperature: { value: data.temperature, unit: "K", color: "#f59e0b", decimals: 0 },
-      }}
-      columns={2}
-    />
-  ) : (
-    <div className="text-center text-gray-500 text-sm py-8">
-      Waiting for simulation data...
-    </div>
+  const dataPanelContent = (
+    <>
+      <DataGrid
+        data={{
+          pH: { value: data.pH, unit: '', color: data.pH > 7 ? '#3b82f6' : data.pH < 7 ? '#ef4444' : '#22c55e', decimals: 2 },
+          temperature: { value: data.temperature, unit: 'K', color: data.temperature > 310 ? '#ef4444' : '#22c55e', decimals: 1 },
+          progress: { value: data.reactionProgress * 100, unit: '%', color: '#8b5cf6', decimals: 1 },
+          products: { value: data.productsFormed, unit: 'molecules', color: '#06b6d4', decimals: 0 },
+        }}
+        columns={2}
+      />
+      <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400 text-sm">Step:</span>
+          <span className="font-mono text-purple-400">
+            {stepMode ? `${currentStep}/5` : 'Auto'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-gray-400 text-sm">Status:</span>
+          <span className="font-mono text-green-400 text-sm">
+            {data.currentStep === 1 ? 'Reactants' :
+             data.currentStep === 2 ? 'Pouring...' :
+             data.currentStep === 3 ? 'Reacting...' :
+             data.currentStep === 4 ? 'Products' :
+             'NaOH + HCl → NaCl + H₂O'}
+          </span>
+        </div>
+      </div>
+    </>
   );
 
   return (
     <>
       <ExperimentContainer
         title="Acid-Base Reactions"
-        description="Explore neutralization reactions and pH changes"
-        cameraPosition={[12, 8, 12]}
+        description="Neutralization reaction: HCl + NaOH → NaCl + H₂O"
+        cameraPosition={[0, 2, 10]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={null}
       >
         <AcidBaseReactionsSceneComponent
-          onDataChange={setData}
-          acidStrength={acidStrength}
-          baseStrength={baseStrength}
-          temperature={temperature}
+          onDataChange={handleDataChange}
+          acidConcentration={acidConcentration}
+          baseConcentration={baseConcentration}
+          acidType={acidType}
+          isPlaying={isPlaying}
+          stepMode={stepMode}
+          currentStep={currentStep}
         />
       </ExperimentContainer>
 
@@ -124,11 +207,11 @@ export default function AcidBaseReactionsPage() {
         onPlayPause={handlePlayPause}
         onReset={handleReset}
         speed={simulationSpeed}
-        onSpeedChange={setSimulationSpeed}
+        onSpeedChange={handleSpeedChange}
       />
 
       <FloatingControlPanel
-        title="⚙️ Reaction Parameters"
+        title="⚙️ Acid-Base Parameters"
         initialPosition={{ x: 20, y: 80 }}
       >
         {parameterControls}

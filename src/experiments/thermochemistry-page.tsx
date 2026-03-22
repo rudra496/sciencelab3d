@@ -1,60 +1,98 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ThermochemistrySceneComponent, ThermochemistryData } from "@/experiments/thermochemistry-scene";
+import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
+  SimulationController,
   FloatingControlPanel,
+  DataPanel,
   ControlGroup,
   ControlSlider,
   DataGrid,
-  SimulationController,
-  DataPanel,
-} from "@/components/experiment-ui";
+} from '@/components/experiment-ui';
+import ThermochemistrySceneComponent, { ThermochemistryData } from './thermochemistry-scene';
 
 export default function ThermochemistryPage() {
   const router = useRouter();
-  const [data, setData] = useState<ThermochemistryData | null>(null);
-  const [showDataPanel, setShowDataPanel] = useState(true);
-
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
+  const [showDataPanel, setShowDataPanel] = useState(true);
+
+  const [reactionType, setReactionType] = useState<'exothermic' | 'endothermic'>('exothermic');
+  const [activationEnergy, setActivationEnergy] = useState(50);
+  const [energyReleased, setEnergyReleased] = useState(40);
+  const [stepMode, setStepMode] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
   const [progress, setProgress] = useState(0);
 
-  const [reactionType, setReactionType] = useState<"exothermic" | "endothermic">("exothermic");
-  const [activationEnergy, setActivationEnergy] = useState(50);
-  const [enthalpyChange, setEnthalpyChange] = useState(40);
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [data, setData] = useState<ThermochemistryData>({
+    reactantEnergy: 80,
+    activationEnergy: 50,
+    productEnergy: 40,
+    netEnergyChange: -40,
+    temperatureChange: 0,
+    progress: 0,
+    currentStep: 1,
+  });
 
-  const handlePlayPause = () => {
-    if (isAnimating) {
-      setIsAnimating(false);
-    } else {
-      setProgress(0);
-      setIsAnimating(true);
-    }
-  };
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying((p) => !p);
+  }, []);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setResetTrigger((n) => n + 1);
-    setIsPlaying(true);
-    setSimulationSpeed(1);
     setProgress(0);
-    setIsAnimating(false);
-  };
+    setCurrentStep(1);
+  }, []);
 
-  const handleProgressChange = (newProgress: number) => {
+  const handleSpeedChange = useCallback((s: number) => {
+    setSimulationSpeed(s);
+  }, []);
+
+  const handleProgressChange = useCallback((newProgress: number) => {
     setProgress(newProgress);
-    if (newProgress >= 1) {
-      setIsAnimating(false);
+  }, []);
+
+  const handleDataChange = useCallback((newData: ThermochemistryData) => {
+    setData(newData);
+  }, []);
+
+  const handleStartReaction = useCallback(() => {
+    if (stepMode && currentStep < 5) {
+      setCurrentStep((s) => s + 1);
     }
-  };
+  }, [stepMode, currentStep]);
 
   const parameterControls = (
     <div className="space-y-4">
-      <ControlGroup title="Reaction Parameters">
+      <ControlGroup title="Reaction Type">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => { setReactionType('exothermic'); setCurrentStep(1); setProgress(0); }}
+            className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              reactionType === 'exothermic'
+                ? 'bg-red-600 text-white'
+                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+            }`}
+          >
+            🔥 Exothermic
+          </button>
+          <button
+            onClick={() => { setReactionType('endothermic'); setCurrentStep(1); setProgress(0); }}
+            className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+              reactionType === 'endothermic'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
+            }`}
+          >
+            ❄️ Endothermic
+          </button>
+        </div>
+      </ControlGroup>
+
+      <ControlGroup title="Energy Parameters">
         <ControlSlider
           label="Activation Energy"
           value={activationEnergy}
@@ -67,118 +105,138 @@ export default function ThermochemistryPage() {
           decimals={0}
         />
         <ControlSlider
-          label="Enthalpy Change"
-          value={enthalpyChange}
+          label="Energy Released/Absorbed"
+          value={energyReleased}
           unit="kJ/mol"
           min={10}
           max={80}
           step={5}
-          color="#ef4444"
-          onChange={setEnthalpyChange}
+          color={reactionType === 'exothermic' ? '#ef4444' : '#3b82f6'}
+          onChange={setEnergyReleased}
           decimals={0}
         />
       </ControlGroup>
 
-      <ControlGroup title="Reaction Type">
+      <ControlGroup title="Mode">
         <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => setReactionType("exothermic")}
+            onClick={() => { setStepMode(false); setCurrentStep(1); setProgress(0); }}
             className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              reactionType === "exothermic"
-                ? "bg-red-600 text-white"
-                : "bg-gray-200/50 text-gray-700 hover:bg-gray-300/50"
+              !stepMode
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
             }`}
           >
-            🔥 Exothermic
+            Auto
           </button>
           <button
-            onClick={() => setReactionType("endothermic")}
+            onClick={() => { setStepMode(true); setCurrentStep(1); setProgress(0); }}
             className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              reactionType === "endothermic"
-                ? "bg-red-600 text-white"
-                : "bg-gray-200/50 text-gray-700 hover:bg-gray-300/50"
+              stepMode
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
             }`}
           >
-            ❄️ Endothermic
+            Step
           </button>
         </div>
       </ControlGroup>
 
-      <button
-        onClick={() => { setProgress(0); setIsAnimating(true); }}
-        disabled={isAnimating}
-        className="w-full py-2.5 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-medium text-sm rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-      >
-        ⚗️ Start Reaction
-      </button>
+      {stepMode && (
+        <button
+          onClick={handleStartReaction}
+          disabled={currentStep >= 5}
+          className="w-full py-2.5 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-500 hover:to-orange-600 disabled:from-gray-500 disabled:to-gray-600 text-white font-medium text-sm rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {currentStep >= 5 ? '✓ Complete' : `Step ${currentStep}/5 - Next`}
+        </button>
+      )}
 
       <button
-        onClick={() => router.push("/experiments/thermochemistry/details")}
-        className="w-full py-2.5 bg-gradient-to-r from-red-100 to-red-200 hover:from-red-200 hover:to-red-300 text-red-700 font-medium text-sm rounded-lg transition-all border border-red-300/50 flex items-center justify-center gap-2"
+        onClick={() => router.push('/experiments/thermochemistry/details')}
+        className="w-full py-2.5 bg-gradient-to-r from-orange-100 to-orange-200 hover:from-orange-200 hover:to-orange-300 text-orange-700 font-medium text-sm rounded-lg transition-all border border-orange-300/50 flex items-center justify-center gap-2"
       >
         📖 View Experiment Details
       </button>
     </div>
   );
 
-  const dataPanelContent = data ? (
+  const stepNames = [
+    'Reactants',
+    'Activation Energy',
+    'Transition State',
+    'Products Formed',
+    reactionType === 'exothermic' ? 'Energy Released' : 'Energy Absorbed',
+  ];
+
+  const dataPanelContent = (
     <>
       <DataGrid
         data={{
-          reactantEnergy: { value: data.reactantEnergy, unit: "kJ/mol", color: "#ff6b35", decimals: 0 },
-          productEnergy: { value: data.productEnergy, unit: "kJ/mol", color: "#06d6a0", decimals: 0 },
-          activationEnergy: { value: data.transitionStateEnergy - data.reactantEnergy, unit: "kJ/mol", color: "#f59e0b", decimals: 0 },
-          enthalpyChange: { value: Math.abs(data.productEnergy - data.reactantEnergy), unit: "kJ/mol", color: "#ec4899", decimals: 0 },
+          reactantEnergy: { value: data.reactantEnergy, unit: 'kJ/mol', color: '#ff6b35', decimals: 0 },
+          productEnergy: { value: data.productEnergy, unit: 'kJ/mol', color: '#06d6a0', decimals: 0 },
+          activationEnergy: { value: data.activationEnergy, unit: 'kJ/mol', color: '#f59e0b', decimals: 0 },
+          netEnergyChange: { value: Math.abs(data.netEnergyChange), unit: 'kJ/mol', color: reactionType === 'exothermic' ? '#ef4444' : '#3b82f6', decimals: 0 },
         }}
         columns={2}
       />
-      <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
+      <div className="mt-3 p-3 bg-gray-800/50 rounded-lg space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-gray-400 text-sm">Progress:</span>
-          <span className="font-mono text-red-400">
+          <span className="font-mono text-purple-400">
             {Math.round(progress * 100)}%
           </span>
         </div>
-        <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400 text-sm">Step:</span>
+          <span className="font-mono text-orange-400 text-sm">
+            {stepMode ? `${currentStep}/5` : 'Auto'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400 text-sm">Status:</span>
+          <span className="font-mono text-green-400 text-sm">
+            {stepNames[currentStep - 1] || stepNames[Math.floor(progress * 4.9)]}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
           <span className="text-gray-400 text-sm">Temp Change:</span>
-          <span className="font-mono text-red-400">
-            {data.temperatureChange > 0 ? "+" : ""}{data.temperatureChange.toFixed(1)} kJ
+          <span className={`font-mono ${data.temperatureChange > 0 ? 'text-red-400' : 'text-blue-400'}`}>
+            {data.temperatureChange > 0 ? '+' : ''}{data.temperatureChange.toFixed(1)} K
           </span>
         </div>
       </div>
     </>
-  ) : (
-    <div className="text-center text-gray-500 text-sm py-8">
-      Waiting for simulation data...
-    </div>
   );
 
   return (
     <>
       <ExperimentContainer
         title="Thermochemistry"
-        description="Explore exothermic and endothermic reactions with energy diagrams"
-        cameraPosition={[10, 8, 10]}
+        description={`Energy changes in ${reactionType} reactions`}
+        cameraPosition={[8, 6, 8]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={null}
       >
         <ThermochemistrySceneComponent
-          onDataChange={setData}
+          onDataChange={handleDataChange}
+          onProgressChange={handleProgressChange}
           reactionType={reactionType}
           activationEnergy={activationEnergy}
-          enthalpyChange={enthalpyChange}
-          isAnimating={isAnimating}
-          onProgressChange={handleProgressChange}
+          energyReleased={energyReleased}
+          isPlaying={isPlaying}
+          stepMode={stepMode}
+          currentStep={currentStep}
         />
       </ExperimentContainer>
 
       <SimulationController
-        isPlaying={isAnimating}
+        isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
         onReset={handleReset}
         speed={simulationSpeed}
-        onSpeedChange={setSimulationSpeed}
+        onSpeedChange={handleSpeedChange}
       />
 
       <FloatingControlPanel

@@ -1,218 +1,332 @@
 "use client";
 
 import { useRef, useMemo, useEffect, useState, useCallback } from "react";
-import { useFrame } from "@react-three/fiber";
-import { Line } from "@react-three/drei";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 export interface MandelbrotData {
-  iterations: number;
+  maxIterations: number;
   zoom: number;
   centerX: number;
   centerY: number;
-  pointsRendered: number;
+  escapeRadius: number;
+  zoomTargetX: number;
+  zoomTargetY: number;
 }
 
 export interface MandelbrotSceneProps {
   maxIterations: number;
   zoom: number;
-  colorScheme: "rainbow" | "fire" | "grayscale";
-  rotationSpeed: number;
-  resolution: number;
+  centerX: number;
+  centerY: number;
+  colorScheme: "rainbow" | "fire" | "grayscale" | "electric";
   isPlaying: boolean;
   onDataChange?: (data: MandelbrotData) => void;
+  onCenterChange?: (x: number, y: number) => void;
+  onZoomChange?: (zoom: number) => void;
 }
 
+const VERTEX_SHADER = `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const FRAGMENT_SHADER = `
+uniform float uTime;
+uniform float uMaxIterations;
+uniform float uZoom;
+uniform vec2 uCenter;
+uniform float uEscapeRadius;
+uniform int uColorScheme;
+uniform vec2 uResolution;
+
+varying vec2 vUv;
+
+// Smooth coloring using logarithm
+vec3 getColor(float iterations, float maxIter, int scheme) {
+  if (iterations >= maxIter) {
+    return vec3(0.0, 0.0, 0.0);
+  }
+
+  // Smooth coloring using log2
+  float logZn = log(iterations + 1.0) / log(2.0);
+  float smoothIter = iterations + 1.0 - logZn;
+  float t = smoothIter / maxIter;
+
+  if (scheme == 0) {
+    // Rainbow
+    float hue = 0.8 * t;
+    return hsv2rgb(vec3(hue, 0.85, 0.95));
+  } else if (scheme == 1) {
+    // Fire
+    return vec3(
+      min(1.0, t * 3.0),
+      max(0.0, min(1.0, t * 2.0 - 0.5)),
+      max(0.0, t * 1.5 - 1.0)
+    );
+  } else if (scheme == 2) {
+    // Grayscale
+    float gray = t;
+    return vec3(gray, gray, gray);
+  } else {
+    // Electric
+    float t2 = sin(t * 6.28) * 0.5 + 0.5;
+    return vec3(
+      0.1 + 0.9 * t2 * t2,
+      0.3 + 0.7 * t * t2,
+      0.9 + 0.1 * sin(t * 12.56)
+    );
+  }
+}
+
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+void main() {
+  // Map UV to complex plane coordinates
+  vec2 uv = vUv - 0.5;
+  float aspect = uResolution.x / uResolution.y;
+
+  // Calculate coordinates in complex plane
+  float scale = 4.0 / uZoom;
+  vec2 c = uCenter + uv * vec2(scale * aspect, scale);
+
+  // Mandelbrot iteration
+  vec2 z = vec2(0.0);
+  float iterations = 0.0;
+  float maxIter = uMaxIterations;
+  float escapeRadius2 = uEscapeRadius * uEscapeRadius;
+
+  for (float i = 0.0; i < 500.0; i++) {
+    if (i >= maxIter) break;
+
+    float x2 = z.x * z.x;
+    float y2 = z.y * z.y;
+
+    if (x2 + y2 > escapeRadius2) {
+      // Smooth iteration count using Renyi extrapolation
+      float logZn = log(x2 + y2) / 2.0;
+      float nu = log(logZn / log(2.0)) / log(2.0);
+      iterations = i + 1.0 - nu;
+      break;
+    }
+
+    z = vec2(x2 - y2, 2.0 * z.x * z.y) + c;
+    iterations = i;
+  }
+
+  if (iterations >= maxIter - 1.0) {
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+  } else {
+    vec3 color = getColor(iterations, maxIter, uColorScheme);
+    gl_FragColor = vec4(color, 1.0);
+  }
+}
+`;
+
 /**
- * Mandelbrot fractal scene component
- * Visualizes the Mandelbrot set in 3D with height-based rendering
+ * Mandelbrot fractal scene using shader-based rendering on a plane
+ * - High-performance GPU rendering using fragment shader
+ * - Smooth coloring with log2-based iteration smoothing
+ * - Interactive zoom and pan via click
  */
 export function MandelbrotSceneComponent({
   maxIterations,
   zoom,
+  centerX,
+  centerY,
   colorScheme,
-  rotationSpeed,
-  resolution,
   isPlaying,
-  onDataChange
+  onDataChange,
+  onCenterChange,
+  onZoomChange,
 }: MandelbrotSceneProps) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const materialRef = useRef<THREE.ShaderMaterial | null>(null);
+  const { size, camera } = useThree();
+
+  // Refs for all state (performance)
   const frameCountRef = useRef(0);
-  const timeRef = useRef(0);
+  const currentZoomRef = useRef(zoom);
+  const currentCenterRef = useRef({ x: centerX, y: centerY });
+  const targetZoomRef = useRef(zoom);
+  const targetCenterRef = useRef({ x: centerX, y: centerY });
+  const isAnimatingRef = useRef(false);
 
-  // Physics state in refs
-  const rotationRef = useRef(0);
+  // React state for UI updates (throttled to every 8 frames)
+  const [data, setData] = useState<MandelbrotData>({
+    maxIterations,
+    zoom,
+    centerX,
+    centerY,
+    escapeRadius: 2.0,
+    zoomTargetX: centerX,
+    zoomTargetY: centerY,
+  });
 
-  // React state for UI updates (throttled)
-  const [pointsRendered, setPointsRendered] = useState(0);
+  // Color scheme to int mapping
+  const colorSchemeInt = useMemo(() => {
+    return { rainbow: 0, fire: 1, grayscale: 2, electric: 3 }[colorScheme] ?? 0;
+  }, [colorScheme]);
 
-  // Calculate Mandelbrot iteration for a point
-  const calculateMandelbrot = useCallback((cx: number, cy: number) => {
-    let x = 0, y = 0;
-    let iteration = 0;
-    while (x * x + y * y <= 4 && iteration < maxIterations) {
-      const temp = x * x - y * y + cx;
-      y = 2 * x * y + cy;
-      x = temp;
-      iteration++;
-    }
-    return iteration;
-  }, [maxIterations]);
-
-  // Generate fractal points
-  const points = useMemo(() => {
-    const pts: { x: number; z: number; height: number; color: THREE.Color }[] = [];
-    const scale = 3 / zoom;
-    const step = 0.2 / Math.sqrt(zoom);
-    const effectiveResolution = Math.min(resolution, 100);
-
-    for (let xi = 0; xi < effectiveResolution; xi++) {
-      for (let zi = 0; zi < effectiveResolution; zi++) {
-        const x = (xi / effectiveResolution - 0.5) * 2 * scale;
-        const z = (zi / effectiveResolution - 0.5) * 2 * scale;
-
-        // Center on interesting Mandelbrot region
-        const cx = -0.75 + x * 0.5;
-        const cy = z * 0.5;
-        const iterations = calculateMandelbrot(cx, cy);
-
-        if (iterations < maxIterations) {
-          const height = (iterations / maxIterations) * 3;
-          let color: THREE.Color;
-
-          if (colorScheme === "rainbow") {
-            color = new THREE.Color().setHSL((iterations / maxIterations) * 0.8, 0.8, 0.5);
-          } else if (colorScheme === "fire") {
-            color = new THREE.Color().setHSL(0.05 - (iterations / maxIterations) * 0.05, 1, 0.3 + (iterations / maxIterations) * 0.4);
-          } else {
-            const gray = iterations / maxIterations;
-            color = new THREE.Color(gray, gray, gray);
-          }
-
-          pts.push({ x, z, height, color });
-        }
-      }
-    }
-    return pts;
-  }, [maxIterations, zoom, colorScheme, calculateMandelbrot, resolution]);
-
-  // Report data changes
-  useEffect(() => {
-    setPointsRendered(points.length);
-    onDataChange?.({
-      iterations: maxIterations,
-      zoom,
-      centerX: -0.75,
-      centerY: 0,
-      pointsRendered: points.length,
+  // Create shader material
+  const material = useMemo(() => {
+    return new THREE.ShaderMaterial({
+      vertexShader: VERTEX_SHADER,
+      fragmentShader: FRAGMENT_SHADER,
+      uniforms: {
+        uTime: { value: 0 },
+        uMaxIterations: { value: maxIterations },
+        uZoom: { value: zoom },
+        uCenter: { value: new THREE.Vector2(centerX, centerY) },
+        uEscapeRadius: { value: 2.0 },
+        uColorScheme: { value: colorSchemeInt },
+        uResolution: { value: new THREE.Vector2(size.width, size.height) },
+      },
+      side: THREE.DoubleSide,
     });
-  }, [maxIterations, zoom, colorScheme, points.length, onDataChange]);
+  }, []);
 
-  useFrame((_, delta) => {
-    if (!isPlaying) return;
+  // Store material ref
+  materialRef.current = material;
+
+  // Handle click on plane to zoom to that point
+  const handleClick = useCallback((event: any) => {
+    event.stopPropagation?.();
+
+    const uv = event.uv;
+    if (!uv) return;
+
+    const aspect = size.width / size.height;
+    const scale = 4.0 / currentZoomRef.current;
+
+    // Calculate clicked point in complex plane
+    const clickX = currentCenterRef.current.x + (uv.x - 0.5) * scale * aspect;
+    const clickY = currentCenterRef.current.y + (uv.y - 0.5) * scale;
+
+    // Set new target (zoom in 3x)
+    targetCenterRef.current = { x: clickX, y: clickY };
+    targetZoomRef.current = Math.min(currentZoomRef.current * 3, 100000);
+    isAnimatingRef.current = true;
+
+    onCenterChange?.(clickX, clickY);
+  }, [size.width, size.height, onCenterChange]);
+
+  // Update uniforms when props change
+  useEffect(() => {
+    if (!materialRef.current) return;
+
+    targetZoomRef.current = zoom;
+    targetCenterRef.current = { x: centerX, y: centerY };
+
+    materialRef.current.uniforms.uMaxIterations.value = maxIterations;
+    materialRef.current.uniforms.uColorScheme.value = colorSchemeInt;
+    materialRef.current.uniforms.uResolution.value.set(size.width, size.height);
+  }, [maxIterations, zoom, centerX, centerY, colorSchemeInt, size.width, size.height]);
+
+  // Handle resize
+  useEffect(() => {
+    if (materialRef.current) {
+      materialRef.current.uniforms.uResolution.value.set(size.width, size.height);
+    }
+  }, [size.width, size.height]);
+
+  useFrame((state, delta) => {
+    if (!materialRef.current) return;
 
     frameCountRef.current++;
-    timeRef.current += delta;
-    rotationRef.current += delta * rotationSpeed * 0.1;
+    const time = state.clock.getElapsedTime();
+    materialRef.current.uniforms.uTime.value = time;
 
-    if (meshRef.current) {
-      meshRef.current.rotation.y = rotationRef.current;
+    // Smooth zoom animation
+    if (isAnimatingRef.current || isPlaying) {
+      const zoomLerp = 0.08;
+      const centerLerp = 0.08;
+
+      currentZoomRef.current += (targetZoomRef.current - currentZoomRef.current) * zoomLerp;
+      currentCenterRef.current.x += (targetCenterRef.current.x - currentCenterRef.current.x) * centerLerp;
+      currentCenterRef.current.y += (targetCenterRef.current.y - currentCenterRef.current.y) * centerLerp;
+
+      // Check if animation is complete
+      const zoomDiff = Math.abs(targetZoomRef.current - currentZoomRef.current);
+      const centerDiff = Math.sqrt(
+        Math.pow(targetCenterRef.current.x - currentCenterRef.current.x, 2) +
+        Math.pow(targetCenterRef.current.y - currentCenterRef.current.y, 2)
+      );
+
+      if (zoomDiff < 0.001 && centerDiff < 0.0001) {
+        isAnimatingRef.current = false;
+      }
+
+      // Update uniforms
+      materialRef.current.uniforms.uZoom.value = currentZoomRef.current;
+      materialRef.current.uniforms.uCenter.value.set(
+        currentCenterRef.current.x,
+        currentCenterRef.current.y
+      );
+
+      // Notify parent of zoom change
+      if (Math.abs(currentZoomRef.current - zoom) > 0.01) {
+        onZoomChange?.(currentZoomRef.current);
+      }
     }
 
     // Update React state every 8 frames
     if (frameCountRef.current % 8 === 0) {
-      onDataChange?.({
-        iterations: maxIterations,
-        zoom,
-        centerX: -0.75,
-        centerY: 0,
-        pointsRendered: points.length,
-      });
+      const newData: MandelbrotData = {
+        maxIterations,
+        zoom: currentZoomRef.current,
+        centerX: currentCenterRef.current.x,
+        centerY: currentCenterRef.current.y,
+        escapeRadius: 2.0,
+        zoomTargetX: targetCenterRef.current.x,
+        zoomTargetY: targetCenterRef.current.y,
+      };
+      setData(newData);
+      onDataChange?.(newData);
     }
   });
 
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  // Position camera to look down at the plane
+  useEffect(() => {
+    if (camera instanceof THREE.PerspectiveCamera) {
+      camera.position.set(0, 15, 0);
+      camera.lookAt(0, 0, 0);
+    }
+  }, [camera]);
 
   return (
-    <>
-      <ambientLight intensity={0.3} />
-      <pointLight position={[10, 15, 10]} intensity={1.5} castShadow />
-      <pointLight position={[-10, 5, -10]} intensity={0.5} color="#3b82f6" />
-      <pointLight position={[0, -5, 0]} intensity={0.2} color="#8b5cf6" />
-
-      {/* Instanced mesh for performance */}
-      <instancedMesh ref={meshRef} args={[new THREE.BoxGeometry(0.06, 1, 0.06), undefined, points.length]}>
-        <meshStandardMaterial metalness={0.3} roughness={0.4} />
-        {points.map((pt, i) => {
-          dummy.position.set(pt.x, pt.height / 2, pt.z);
-          dummy.scale.set(1, pt.height, 1);
-          dummy.updateMatrix();
-          return (
-            <primitive key={i} object={dummy} matrix={dummy.matrix.clone()} attach="instance-matrix" />
-          );
-        })}
-      </instancedMesh>
-
-      {/* Base plane with grid */}
-      <mesh position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-        <planeGeometry args={[10, 10]} />
-        <meshStandardMaterial color="#0a0a1a" roughness={0.95} />
+    <group>
+      <mesh
+        ref={meshRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0, 0]}
+        onClick={handleClick}
+      >
+        <planeGeometry args={[16, 16, 1, 1]} />
+        <primitive object={material} attach="material" />
       </mesh>
 
-      <gridHelper args={[20, 20, "#1a1a3e", "#1a1a3e"]} position={[0, -0.1, 0]} />
-
-      {/* Coordinate axes */}
-      <Line
-        points={[[-3, 0, 0], [3, 0, 0]]}
-        color="#ef4444"
-        lineWidth={1}
-      />
-      <Line
-        points={[[0, 0, -3], [0, 0, 3]]}
-        color="#22c55e"
-        lineWidth={1}
-      />
-      <Line
-        points={[[0, 0, 0], [0, 3, 0]]}
-        color="#3b82f6"
-        lineWidth={1}
-      />
-
-      {/* Boundary circle showing escape radius */}
-      <Line
-        points={Array.from({ length: 64 }, (_, i) => {
-          const angle = (i / 64) * Math.PI * 2;
-          return [Math.cos(angle) * 2, 0, Math.sin(angle) * 2] as [number, number, number];
-        })}
-        color="#8b5cf6"
-        lineWidth={1}
-        opacity={0.3}
-        transparent
-      />
-
-      {/* Julia set hint (small separate visualization) */}
-      <group position={[5, 1, 0]}>
-        {Array.from({ length: 50 }, (_, i) => {
-          const angle = (i / 50) * Math.PI * 2;
-          const r = 0.5 + Math.sin(angle * 3) * 0.2;
-          const x = Math.cos(angle) * r;
-          const y = Math.sin(angle) * r;
-          const color = new THREE.Color().setHSL(i / 50, 0.7, 0.5);
-          return (
-            <mesh key={i} position={[x, y, 0]}>
-              <sphereGeometry args={[0.04, 8, 8]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} />
-            </mesh>
-          );
-        })}
-      </group>
-
-      {/* Info labels */}
-      <mesh position={[0, 3.5, 0]}>
-        <planeGeometry args={[5, 0.5]} />
-        <meshBasicMaterial color="#8b5cf6" transparent opacity={0.8} />
+      {/* Border around the fractal area */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <ringGeometry args={[8.01, 8.1, 64]} />
+        <meshBasicMaterial color="#8b5cf6" side={THREE.DoubleSide} transparent opacity={0.5} />
       </mesh>
-    </>
+
+      {/* Corner markers */}
+      {[[-7.5, 7.5], [7.5, 7.5], [7.5, -7.5], [-7.5, -7.5]].map(([x, z], i) => (
+        <mesh key={i} position={[x, 0.02, z]}>
+          <sphereGeometry args={[0.15, 16, 16]} />
+          <meshBasicMaterial color="#a855f7" />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
