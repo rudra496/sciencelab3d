@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { GravitationalOrbitsSceneComponent, OrbitData } from "@/experiments/gravitational-orbits-scene";
-import { ExperimentContainer } from "@/components/experiment-ui/ExperimentContainer";
+import { ExperimentContainer, FloatingControlPanel } from "@/components/experiment-ui";
 import { ControlGroup, ControlSlider, DataGrid } from "@/components/experiment-ui/ExperimentControls";
 
 export default function GravitationalOrbitsPage() {
@@ -43,7 +43,7 @@ export default function GravitationalOrbitsPage() {
           </label>
         </div>
       </ControlGroup>
-      <button onClick={handleReset} className="w-full py-3 bg-gradient-to-r from-yellow-600 to-yellow-700 text-white font-semibold rounded-lg">🔄 Reset</button>
+      <button onClick={handleReset} className="w-full py-3 bg-linear-to-r from-yellow-600 to-yellow-700 text-white font-semibold rounded-lg">🔄 Reset</button>
     </div>
   );
 
@@ -87,16 +87,26 @@ export default function GravitationalOrbitsPage() {
   );
 
   return (
-    <ExperimentContainer
-      title="Gravitational Orbits"
-      description="Explore orbital mechanics and gravitational interactions"
-      cameraPosition={[50, 35, 50]}
-      backgroundColor="#050510"
-      controls={controls}
-      dataPanel={dataPanel}
-      details={details}
-    >
-      <GravitationalOrbitsSceneComponent onDataChange={setData} {...config} resetTrigger={resetTrigger} />
-    </ExperimentContainer>
+    <>
+      <ExperimentContainer
+        title="Gravitational Orbits"
+        description="Explore orbital mechanics and gravitational interactions"
+        cameraPosition={[50, 35, 50]}
+        backgroundColor="#050510"
+        controls={null}
+        dataPanel={dataPanel}
+        details={details}
+      >
+        <GravitationalOrbitsSceneComponent onDataChange={setData} {...config} resetTrigger={resetTrigger} />
+      </ExperimentContainer>
+
+      <FloatingControlPanel
+        title="Orbit Controls"
+        onReset={handleReset}
+        initialPosition={{ x: 20, y: 80 }}
+      >
+        {controls}
+      </FloatingControlPanel>
+    </>
   );
 }

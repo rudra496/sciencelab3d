@@ -4,6 +4,9 @@ export type { ExperimentContainerProps, SimulationBarProps } from './ExperimentC
 export { ControlPanel } from './ControlPanel';
 export type { ControlPanelProps } from './ControlPanel';
 
+export { FloatingControlPanel } from './FloatingControlPanel';
+export type { FloatingControlPanelProps } from './FloatingControlPanel';
+
 export { ControlGroup, ControlItem, ControlSlider, DataGrid, EnergyBar } from './ExperimentControls';
 export type { ControlGroupProps, ControlItemProps, ControlSliderProps, DataGridProps, EnergyBarProps } from './ExperimentControls';
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DopplerSceneComponent, DopplerData } from "@/experiments/doppler-scene";
-import { ExperimentContainer } from "@/components/experiment-ui/ExperimentContainer";
+import { ExperimentContainer, FloatingControlPanel } from "@/components/experiment-ui";
 import { ControlGroup, ControlSlider, DataGrid } from "@/components/experiment-ui/ExperimentControls";
 
 export default function DopplerPage() {
@@ -28,7 +28,7 @@ export default function DopplerPage() {
         <ControlSlider label="Source Velocity (vₛ)" value={config.sourceVelocity} unit="m/s" min={0} max={15} step={0.5} color="#3b82f6" onChange={(v) => updateConfig("sourceVelocity", v)} />
         <ControlSlider label="Wave Speed (v)" value={config.waveSpeed} unit="m/s" min={5} max={20} step={1} color="#22c55e" onChange={(v) => updateConfig("waveSpeed", v)} decimals={0} />
       </ControlGroup>
-      <button onClick={handleReset} className="w-full py-3 bg-gradient-to-r from-orange-600 to-orange-700 text-white font-semibold rounded-lg">🔄 Reset</button>
+      <button onClick={handleReset} className="w-full py-3 bg-linear-to-r from-orange-600 to-orange-700 text-white font-semibold rounded-lg">🔄 Reset</button>
     </div>
   );
 
@@ -75,16 +75,26 @@ export default function DopplerPage() {
   );
 
   return (
-    <ExperimentContainer
-      title="Doppler Effect"
-      description="Observe frequency shift from moving sound sources"
-      cameraPosition={[0, 35, 45]}
-      backgroundColor="#050510"
-      controls={controls}
-      dataPanel={dataPanel}
-      details={details}
-    >
-      <DopplerSceneComponent onDataChange={setData} {...config} resetTrigger={resetTrigger} />
-    </ExperimentContainer>
+    <>
+      <ExperimentContainer
+        title="Doppler Effect"
+        description="Observe frequency shift from moving sound sources"
+        cameraPosition={[0, 35, 45]}
+        backgroundColor="#050510"
+        controls={null}
+        dataPanel={dataPanel}
+        details={details}
+      >
+        <DopplerSceneComponent onDataChange={setData} {...config} resetTrigger={resetTrigger} />
+      </ExperimentContainer>
+
+      <FloatingControlPanel
+        title="Doppler Controls"
+        onReset={handleReset}
+        initialPosition={{ x: 20, y: 80 }}
+      >
+        {controls}
+      </FloatingControlPanel>
+    </>
   );
 }

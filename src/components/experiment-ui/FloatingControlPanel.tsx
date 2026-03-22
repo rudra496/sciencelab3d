@@ -1,8 +1,8 @@
 "use client";
 
-import { ReactNode, useRef, useState, useCallback, useEffect, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
+import { useState, useRef, useEffect, ReactNode, useCallback, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
 
-export interface ControlPanelProps {
+export interface FloatingControlPanelProps {
   children?: ReactNode;
   onPlayPause?: (isPlaying: boolean) => void;
   onReset?: () => void;
@@ -17,16 +17,17 @@ export interface ControlPanelProps {
 }
 
 /**
- * RESPONSIVE Control Panel with Mouse + Touch Drag Support
- * - Works on desktop (mouse) and mobile (touch)
+ * FLOATING DRAGGABLE Control Panel
+ * - Can be dragged around the screen
+ * - Collapsible
  * - Play/Pause toggle
  * - Reset button
  * - Speed control (0.1x to 3x)
- * - Collapsible
+ * - Touch-friendly
  * - Stays within viewport bounds
  * - Performance optimized
  */
-export function ControlPanel({
+export function FloatingControlPanel({
   children,
   onPlayPause,
   onReset,
@@ -38,14 +39,12 @@ export function ControlPanel({
   showSpeed = true,
   title = "Controls",
   initialPosition,
-}: ControlPanelProps) {
+}: FloatingControlPanelProps) {
   const [isPlaying, setIsPlaying] = useState(defaultPlaying);
   const [speed, setSpeed] = useState(defaultSpeed);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
-  // Responsive positioning
   const [position, setPosition] = useState(() => {
     if (typeof window === "undefined") return { x: 20, y: 80 };
     const isSmallScreen = window.innerWidth < 768;
@@ -79,7 +78,7 @@ export function ControlPanel({
       clearTimeout(autoCollapseTimeout.current);
       autoCollapseTimeout.current = setTimeout(() => {
         setIsCollapsed(true);
-      }, 10000); // 10 seconds of inactivity
+      }, 10000);
     };
 
     resetTimeout();
@@ -179,13 +178,13 @@ export function ControlPanel({
       window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("touchend", handleTouchEnd);
     };
-  }, [isDragging, isMobile, isCollapsed]);
+  }, [isDragging, isMobile, isCollapsed, position]);
 
   return (
     <div
       ref={panelRef}
       className={`
-        fixed z-30 transition-none touch-none select-none
+        fixed z-30 transition-transform touch-none select-none
         ${isDragging ? "cursor-grabbing" : "cursor-grab"}
       `}
       style={{
@@ -197,98 +196,46 @@ export function ControlPanel({
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
     >
-      <div className="w-full bg-linear-to-br from-gray-900/95 to-purple-900/90 backdrop-blur-xl border border-purple-500/30 rounded-xl shadow-2xl overflow-hidden">
+      <div className="w-full bg-linear-to-br from-white/95 to-purple-50/90 backdrop-blur-xl border border-purple-500/30 rounded-xl shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-2 sm:p-4 border-b border-purple-500/30 bg-gray-900/50">
-          <h3 className="text-sm sm:text-base font-bold text-purple-400">{title}</h3>
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-gray-400 hover:text-white transition-colors text-sm sm:text-base p-1"
-            aria-label={isCollapsed ? "Expand" : "Collapse"}
-          >
-            {isCollapsed ? "▼" : "▲"}
-          </button>
+        <div className="flex items-center justify-between sticky top-0 bg-linear-to-r from-blue-600 to-purple-600 py-2 px-3 sm:px-6 -mx-3 border-b border-purple-200 shrink-0">
+          <h2 className="text-base sm:text-lg font-bold text-white">{title}</h2>
+          <div className="flex gap-2">
+            {showPlayPause && (
+              <button
+                onClick={handlePlayPause}
+                className={`
+                  px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center gap-1 sm:gap-2
+                  ${isPlaying
+                    ? "bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/30"
+                    : "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/30"
+                }`}
+              >
+                {isPlaying ? "⏸" : "▶"} <span className="hidden sm:inline">{isPlaying ? "Pause" : "Play"}</span>
+              </button>
+            )}
+            {showReset && (
+              <button
+                onClick={handleReset}
+                className="px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center gap-1 sm:gap-2 bg-gray-200/50 hover:bg-gray-300 text-gray-700 shadow-md"
+              >
+                🔄 <span className="hidden sm:inline">Reset</span>
+              </button>
+            )}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="text-gray-600 hover:text-gray-900 text-lg sm:text-xl p-1 transition-colors"
+              aria-label={isCollapsed ? "Expand" : "Collapse"}
+            >
+              {isCollapsed ? "▼" : "▲"}
+            </button>
+          </div>
         </div>
 
+        {/* Content */}
         {!isCollapsed && (
-          <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 max-h-[60vh] sm:max-h-[calc(100vh-200px)] overflow-y-auto">
-            {/* Playback Controls */}
-            {(showPlayPause || showReset) && (
-              <div className="flex gap-2">
-                {showPlayPause && (
-                  <button
-                    onClick={handlePlayPause}
-                    className={`
-                      flex-1 py-2 px-3 sm:py-2.5 sm:px-4 rounded-lg font-medium text-xs sm:text-sm
-                      transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2
-                      ${isPlaying
-                        ? "bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/30"
-                        : "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/30"
-                      }
-                    `}
-                    aria-label={isPlaying ? "Pause" : "Play"}
-                  >
-                    {isPlaying ? (
-                      <>
-                        <span className="text-sm">⏸</span>
-                        <span className="hidden sm:inline">Pause</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-sm">▶</span>
-                        <span className="hidden sm:inline">Play</span>
-                      </>
-                    )}
-                  </button>
-                )}
-                {showReset && (
-                  <button
-                    onClick={handleReset}
-                    className="py-2 px-3 sm:py-2.5 sm:px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium text-xs sm:text-sm transition-all shadow-lg"
-                    aria-label="Reset"
-                  >
-                    <span className="text-sm sm:hidden">🔄</span>
-                    <span className="hidden sm:inline">🔄 Reset</span>
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Speed Control */}
-            {showSpeed && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-gray-400">Speed</span>
-                  <span className="font-mono text-purple-400">
-                    {speed.toFixed(1)}x
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="3"
-                  step="0.1"
-                  value={speed}
-                  onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
-                  className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer touch-none"
-                  style={{ accentColor: "#8b5cf6" }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                />
-                <div className="flex justify-between text-[10px] sm:text-xs text-gray-500">
-                  <span>0.1x</span>
-                  <span>1x</span>
-                  <span>3x</span>
-                </div>
-              </div>
-            )}
-
-            {/* Custom Controls */}
-            {children && (
-              <div className="pt-3 sm:pt-4 border-t border-purple-500/30 space-y-2 sm:space-y-3">
-                {children}
-              </div>
-            )}
+          <div className="p-3 sm:p-4 space-y-3 max-h-[60vh] sm:max-h-[calc(100vh-80px)] overflow-y-auto">
+            {children}
           </div>
         )}
       </div>
@@ -296,4 +243,4 @@ export function ControlPanel({
   );
 }
 
-export default ControlPanel;
+export default FloatingControlPanel;

@@ -76,7 +76,7 @@ export function ExperimentContainer({
   backgroundColor = "#050510",
   simulationBar,
 }: ExperimentContainerProps) {
-  const [showControls, setShowControls] = useState(false);
+  const [showControls, setShowControls] = useState(true);
   const [showData, setShowData] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -135,7 +135,7 @@ export function ExperimentContainer({
   }, []);
 
   return (
-    <div ref={containerRef} className="fixed inset-0 w-screen h-screen overflow-hidden bg-gradient-to-br from-slate-100 via-blue-50 to-purple-50">
+    <div ref={containerRef} className="fixed inset-0 w-screen h-screen overflow-hidden bg-linear-to-br from-slate-100 via-blue-50 to-purple-50">
       {/* Main 3D Canvas */}
       <Canvas
         ref={canvasRef}
@@ -212,7 +212,7 @@ export function ExperimentContainer({
       </Canvas>
 
       {/* Header Bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-white/90 via-white/70 to-transparent p-3 sm:p-4 backdrop-blur-sm">
+      <div className="absolute top-0 left-0 right-0 z-10 bg-linear-to-b from-white/90 via-white/70 to-transparent p-3 sm:p-4 backdrop-blur-sm">
         <div className="flex items-center justify-between max-w-7xl mx-auto px-2 sm:px-0">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 tracking-tight truncate">
@@ -258,31 +258,18 @@ export function ExperimentContainer({
             {showData ? "✓" : "📊"} <span className="hidden sm:inline">Data</span>
           </button>
         )}
-        {details && (
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className={`
-              px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
-              ${showDetails
-                ? "bg-green-600 text-white shadow-lg shadow-green-500/50"
-                : "bg-white/90 text-gray-700 hover:bg-white border border-gray-200 backdrop-blur-sm shadow-md"}
-            `}
-          >
-            {showDetails ? "✓" : "ℹ"} <span className="hidden sm:inline">Info</span>
-          </button>
-        )}
       </div>
 
       {/* Controls Panel - Slide-in Sidebar */}
       {controls && showControls && (
         <div
-          className="absolute top-0 right-0 z-30 h-full w-full sm:w-80 md:w-96 bg-gradient-to-l from-gray-900/95 to-gray-900/90 backdrop-blur-xl border-l border-purple-500/30 shadow-2xl overflow-y-auto"
+          className="absolute top-0 right-0 z-30 h-full w-full sm:w-80 md:w-96 bg-white/95 backdrop-blur-xl border-l border-purple-500/30 shadow-2xl overflow-y-auto"
           style={{ WebkitOverflowScrolling: "touch", maxHeight: "100vh" }}
         >
           <div className="p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4 sm:mb-6 sticky top-0 bg-gray-900/95 backdrop-blur-sm py-2 -mx-4 sm:-mx-6 px-4 sm:px-6 border-b border-gray-700">
-              <h2 className="text-lg sm:text-xl font-bold text-purple-400">Controls</h2>
-              <button onClick={() => setShowControls(false)} className="text-gray-400 hover:text-white transition-colors text-xl sm:text-2xl p-1">✕</button>
+            <div className="flex items-center justify-between mb-4 sm:mb-6 sticky top-0 bg-white/95 backdrop-blur-sm py-2 -mx-4 sm:-mx-6 px-4 sm:px-6 border-b border-purple-200">
+              <h2 className="text-lg sm:text-xl font-bold text-purple-600">Controls</h2>
+              <button onClick={() => setShowControls(false)} className="text-gray-600 hover:text-gray-900 transition-colors text-xl sm:text-2xl p-1">✕</button>
             </div>
             {controls}
           </div>
@@ -293,14 +280,14 @@ export function ExperimentContainer({
       {dataPanel && showData && (
         <div className={`
           absolute bottom-16 sm:bottom-20 left-2 sm:left-4 z-20
-          bg-gradient-to-br from-gray-900/95 to-blue-900/90 backdrop-blur-xl
-          border border-blue-500/30 rounded-xl shadow-2xl
+          bg-white/95 backdrop-blur-xl
+          border border-blue-200 rounded-xl shadow-2xl
           p-2 sm:p-4 max-w-full sm:max-w-sm transition-all duration-300
           ${isMobile ? "max-h-[40vh] overflow-y-auto" : ""}
         `}>
-          <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-blue-500/30">
-            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-400 animate-pulse" />
-            <h3 className="text-xs sm:text-sm font-semibold text-blue-400">Real-time Data</h3>
+          <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 pb-1.5 sm:pb-2 border-b border-blue-200">
+            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 animate-pulse" />
+            <h3 className="text-xs sm:text-sm font-semibold text-blue-600">Real-time Data</h3>
           </div>
           {dataPanel}
         </div>
@@ -309,7 +296,7 @@ export function ExperimentContainer({
       {/* Details Panel - Only visible when explicitly opened */}
       {details && showDetails && (
         <div className="absolute top-20 right-4 z-40 w-80 sm:w-96 max-h-[70vh] bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden transition-all duration-300">
-          <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-3 sm:p-4 border-b border-gray-200 flex-shrink-0">
+          <div className="sticky top-0 bg-linear-to-r from-blue-600 to-purple-600 p-3 sm:p-4 border-b border-gray-200 shrink-0">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-bold text-white">Experiment Details</h2>
               <button
@@ -367,7 +354,7 @@ export function ExperimentContainer({
               className="w-16 sm:w-24 h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer touch-none"
               style={{ accentColor: "#8b5cf6" }}
             />
-            <span className="text-xs sm:text-sm font-mono text-purple-400 min-w-[2.5rem] text-center">
+            <span className="text-xs sm:text-sm font-mono text-purple-400 min-w-10 text-center">
               {simulationBar.speed.toFixed(1)}x
             </span>
           </div>

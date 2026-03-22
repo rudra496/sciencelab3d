@@ -13,7 +13,7 @@ export interface ControlGroupProps {
 export function ControlGroup({ title, children }: ControlGroupProps) {
   return (
     <div className="mb-4 last:mb-0">
-      <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-2 pb-2 border-b border-gray-700">
+      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2 pb-2 border-b border-gray-300">
         {title}
       </h3>
       <div className="space-y-2">
@@ -37,8 +37,8 @@ export function ControlItem({ label, value, unit, color = "#a855f7" }: ControlIt
   const displayValue = typeof value === "number" ? value.toFixed(2) : value;
 
   return (
-    <div className="flex items-center justify-between py-2 px-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-      <span className="text-sm text-gray-400">{label}</span>
+    <div className="flex items-center justify-between py-2 px-3 bg-gray-100/50 rounded-lg border border-gray-300/50">
+      <span className="text-sm text-gray-700">{label}</span>
       <span className="text-sm font-mono font-bold" style={{ color }}>
         {displayValue}
         {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
@@ -67,7 +67,7 @@ export function ControlSlider({ label, value, unit, min, max, step, color = "#a8
   return (
     <div className={`space-y-1 ${disabled ? "opacity-50" : ""}`}>
       <div className="flex justify-between text-xs">
-        <span className="text-gray-400">{label}</span>
+        <span className="text-gray-700">{label}</span>
         <span className="font-mono text-xs" style={{ color }}>
           {decimals === 0 ? value.toFixed(0) : value.toFixed(decimals)}
           {unit && <span className="text-xs text-gray-500 ml-1">{unit}</span>}
@@ -81,7 +81,7 @@ export function ControlSlider({ label, value, unit, min, max, step, color = "#a8
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
         disabled={disabled}
-        className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 touch-none"
+        className="w-full h-1.5 bg-gray-300 rounded-lg appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 touch-none"
         style={{ accentColor: color }}
       />
     </div>
@@ -109,14 +109,14 @@ export function DataGrid({ data, columns = 1 }: DataGridProps) {
       {Object.entries(data).map(([key, item]) => (
         <div
           key={key}
-          className="flex items-center justify-between py-1.5 px-2 bg-gray-800/30 rounded-lg border border-gray-700/30"
+          className="flex items-center justify-between py-1.5 px-2 bg-gray-100/30 rounded-lg border border-gray-300/30"
         >
-          <span className="text-xs text-gray-400 capitalize">
+          <span className="text-xs text-gray-700 capitalize">
             {key.replace(/([A-Z])/g, " $1").trim()}
           </span>
           <span
             className="text-xs font-mono font-medium"
-            style={{ color: item.color || "#fff" }}
+            style={{ color: item.color || "#333" }}
           >
             {item.value.toFixed(item.decimals ?? 2)} {item.unit}
           </span>
@@ -148,7 +148,7 @@ export function EnergyBar({ kinetic, potential, total, maxEnergy }: EnergyBarPro
         </div>
         <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all duration-100"
+            className="h-full bg-linear-to-r from-orange-600 to-orange-400 transition-all duration-100"
             style={{ width: `${(kinetic / max) * 100}%` }}
           />
         </div>
@@ -160,7 +160,7 @@ export function EnergyBar({ kinetic, potential, total, maxEnergy }: EnergyBarPro
         </div>
         <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-100"
+            className="h-full bg-linear-to-r from-blue-600 to-blue-400 transition-all duration-100"
             style={{ width: `${(potential / max) * 100}%` }}
           />
         </div>
@@ -172,7 +172,7 @@ export function EnergyBar({ kinetic, potential, total, maxEnergy }: EnergyBarPro
         </div>
         <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-100"
+            className="h-full bg-linear-to-r from-green-600 to-green-400 transition-all duration-100"
             style={{ width: `${(total / max) * 100}%` }}
           />
         </div>

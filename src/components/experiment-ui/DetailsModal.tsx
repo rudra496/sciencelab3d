@@ -47,9 +47,9 @@ export function DetailsModal({ isOpen, onClose, title, children }: DetailsModalP
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200" />
 
       {/* Modal */}
-      <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+      <div className="relative bg-linear-to-br from-gray-900 to-gray-800 border border-green-500/30 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-6 border-b border-green-500/30 flex-shrink-0">
+        <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm p-6 border-b border-green-500/30 shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-green-400">{title}</h2>
             <button
@@ -148,7 +148,7 @@ export function DetailsButton({ onClick, position = "bottom-right" }: DetailsBut
       onClick={onClick}
       className={`
         fixed z-20 px-4 py-2
-        bg-gradient-to-r from-green-600 to-green-700
+        bg-linear-to-r from-green-600 to-green-700
         hover:from-green-500 hover:to-green-600
         text-white font-semibold text-sm rounded-lg
         transition-all duration-200 shadow-lg shadow-green-500/30

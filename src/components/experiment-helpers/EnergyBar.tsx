@@ -34,7 +34,7 @@ export default function EnergyBar({
 
   return (
     <Html position={position}>
-      <div className="bg-gray-900/95 backdrop-blur-sm border border-purple-500/30 rounded-lg p-4 min-w-[220px] shadow-2xl">
+      <div className="bg-gray-900/95 backdrop-blur-sm border border-purple-500/30 rounded-lg p-4 min-w-55 shadow-2xl">
         {showLabels && (
           <h3 className="text-purple-400 font-semibold text-sm mb-3 border-b border-purple-500/30 pb-2">
             Energy
@@ -49,7 +49,7 @@ export default function EnergyBar({
             </div>
             <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all duration-100"
+                className="h-full bg-linear-to-r from-orange-600 to-orange-400 transition-all duration-100"
                 style={{ width: `${kePercent}%` }}
               />
             </div>
@@ -63,7 +63,7 @@ export default function EnergyBar({
             </div>
             <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-100"
+                className="h-full bg-linear-to-r from-blue-600 to-blue-400 transition-all duration-100"
                 style={{ width: `${pePercent}%` }}
               />
             </div>
@@ -77,7 +77,7 @@ export default function EnergyBar({
             </div>
             <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-green-600 to-green-400 transition-all duration-100"
+                className="h-full bg-linear-to-r from-green-600 to-green-400 transition-all duration-100"
                 style={{ width: `${totalPercent}%` }}
               />
             </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { SpringMassSceneComponent, SpringData } from "@/experiments/spring-mass-scene";
-import { ExperimentContainer } from "@/components/experiment-ui/ExperimentContainer";
+import { ExperimentContainer, FloatingControlPanel } from "@/components/experiment-ui";
 import { ControlGroup, ControlSlider, DataGrid, EnergyBar } from "@/components/experiment-ui/ExperimentControls";
 
 export default function SpringMassPage() {
@@ -32,7 +32,7 @@ export default function SpringMassPage() {
         <ControlSlider label="Initial Displacement" value={config.initialDisplacement} unit="m" min={-3} max={3} step={0.5} color="#ec4899" onChange={(v) => updateConfig("initialDisplacement", v)} />
       </ControlGroup>
 
-      <button onClick={handleReset} className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold rounded-lg transition-all shadow-lg">
+      <button onClick={handleReset} className="w-full py-3 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold rounded-lg transition-all shadow-lg">
         🔄 Reset Simulation
       </button>
     </div>
@@ -88,16 +88,26 @@ export default function SpringMassPage() {
   );
 
   return (
-    <ExperimentContainer
-      title="Spring-Mass System"
-      description="Observe simple harmonic motion and energy conservation"
-      cameraPosition={[30, 18, 30]}
-      backgroundColor="#050510"
-      controls={controls}
-      dataPanel={dataPanel}
-      details={details}
-    >
-      <SpringMassSceneComponent onDataChange={setData} {...config} resetTrigger={resetTrigger} />
-    </ExperimentContainer>
+    <>
+      <ExperimentContainer
+        title="Spring-Mass System"
+        description="Observe simple harmonic motion and energy conservation"
+        cameraPosition={[30, 18, 30]}
+        backgroundColor="#050510"
+        controls={null}
+        dataPanel={dataPanel}
+        details={details}
+      >
+        <SpringMassSceneComponent onDataChange={setData} {...config} resetTrigger={resetTrigger} />
+      </ExperimentContainer>
+
+      <FloatingControlPanel
+        title="Spring-Mass Controls"
+        onReset={handleReset}
+        initialPosition={{ x: 20, y: 80 }}
+      >
+        {controls}
+      </FloatingControlPanel>
+    </>
   );
 }
