@@ -13,6 +13,8 @@ import {
   DataGrid,
   EnergyBar,
   FloatingControlPanel,
+  SimulationController,
+  DataPanel,
 } from "@/components/experiment-ui";
 
 /** Gravity presets */
@@ -27,11 +29,13 @@ const GRAVITY_PRESETS = [
 export default function PendulumExperimentPage() {
   const router = useRouter();
   const [data, setData] = useState<PendulumData | null>(null);
+  const [showDataPanel, setShowDataPanel] = useState(true);
 
   // Simulation
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
+  const [timeElapsed, setTimeElapsed] = useState(0);
 
   // Physics
   const [length, setLength] = useState(10);
@@ -51,10 +55,11 @@ export default function PendulumExperimentPage() {
     setResetTrigger((n) => n + 1);
     setIsPlaying(true);
     setSimulationSpeed(1);
+    setTimeElapsed(0);
   };
 
-  // === FLOATING CONTROLS ===
-  const controls = (
+  // === PARAMETER CONTROLS ===
+  const parameterControls = (
     <div className="space-y-4">
       {/* Physics Parameters */}
       <ControlGroup title="Physics Parameters">
@@ -122,8 +127,8 @@ export default function PendulumExperimentPage() {
     </div>
   );
 
-  // === DATA PANEL ===
-  const dataPanel = data ? (
+  // === DATA PANEL CONTENT ===
+  const dataPanelContent = data ? (
     <>
       <DataGrid
         data={{
@@ -145,7 +150,11 @@ export default function PendulumExperimentPage() {
         />
       </div>
     </>
-  ) : null;
+  ) : (
+    <div className="text-center text-gray-500 text-sm py-8">
+      Waiting for simulation data...
+    </div>
+  );
 
   return (
     <>
@@ -155,7 +164,7 @@ export default function PendulumExperimentPage() {
         cameraPosition={[30, 20, 30]}
         backgroundColor="#050510"
         controls={null}
-        dataPanel={dataPanel}
+        dataPanel={null}
       >
         <PendulumSceneComponent
           onDataChange={setData}
@@ -174,17 +183,31 @@ export default function PendulumExperimentPage() {
         />
       </ExperimentContainer>
 
-      <FloatingControlPanel
-        title="⚙️ Pendulum Controls"
+      {/* Simulation Controller - Always Visible */}
+      <SimulationController
+        isPlaying={isPlaying}
         onPlayPause={handlePlayPause}
         onReset={handleReset}
+        speed={simulationSpeed}
         onSpeedChange={setSimulationSpeed}
-        defaultSpeed={simulationSpeed}
-        defaultPlaying={isPlaying}
+        timeElapsed={timeElapsed}
+      />
+
+      {/* Parameter Controls - Toggleable */}
+      <FloatingControlPanel
+        title="⚙️ Pendulum Parameters"
         initialPosition={{ x: 20, y: 80 }}
       >
-        {controls}
+        {parameterControls}
       </FloatingControlPanel>
+
+      {/* Data Panel - Floating Toggleable */}
+      <DataPanel
+        isVisible={showDataPanel}
+        onToggle={() => setShowDataPanel(!showDataPanel)}
+      >
+        {dataPanelContent}
+      </DataPanel>
     </>
   );
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ProjectileMotionSceneComponent, ProjectileData } from "@/experiments/projectile-motion-scene";
-import { ExperimentContainer, FloatingControlPanel } from "@/components/experiment-ui";
+import { ExperimentContainer, FloatingControlPanel, SimulationController, DataPanel } from "@/components/experiment-ui";
 import { ControlGroup, ControlSlider, DataGrid } from "@/components/experiment-ui/ExperimentControls";
 
 /** Gravity presets */
@@ -32,6 +32,7 @@ interface ProjectileConfig {
 export default function ProjectileMotionPage() {
   const router = useRouter();
   const [data, setData] = useState<ProjectileData | null>(null);
+  const [showDataPanel, setShowDataPanel] = useState(true);
   const [config, setConfig] = useState<ProjectileConfig>({
     velocity: 30,
     angle: 45,
@@ -50,11 +51,13 @@ export default function ProjectileMotionPage() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [hasLaunched, setHasLaunched] = useState(false);
+  const [timeElapsed, setTimeElapsed] = useState(0);
 
   const handleLaunch = () => {
     setHasLaunched(true);
     setResetTrigger((n) => n + 1);
     setIsPlaying(true);
+    setTimeElapsed(0);
   };
 
   const handleReset = () => {
@@ -63,21 +66,23 @@ export default function ProjectileMotionPage() {
     setIsPlaying(true);
     setSimulationSpeed(1);
     setData(null);
+    setTimeElapsed(0);
   };
 
   const updateConfig = (key: keyof ProjectileConfig, value: any) => {
     setConfig((prev) => ({ ...prev, [key]: value }));
   };
 
-  // === FLOATING CONTROLS ===
-  const controls = (
+  // === PARAMETER CONTROLS ===
+  const parameterControls = (
     <div className="space-y-4">
       {/* Launch Controls */}
       <ControlGroup title="Launch Controls">
         <div className="flex gap-2">
           <button
             onClick={handleLaunch}
-            className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold rounded-lg transition-all shadow-lg text-sm"
+            disabled={hasLaunched}
+            className="flex-1 py-3 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-500 hover:to-green-600 text-white font-semibold rounded-lg transition-all shadow-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             🚀 Launch
           </button>
@@ -88,19 +93,6 @@ export default function ProjectileMotionPage() {
             🔄 Reset
           </button>
         </div>
-
-        {hasLaunched && (
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className={`w-full mt-2 py-2.5 rounded-lg font-semibold transition-all shadow-lg text-sm ${
-              isPlaying
-                ? "bg-orange-600 hover:bg-orange-500 text-white shadow-orange-500/30"
-                : "bg-green-600 hover:bg-green-500 text-white shadow-green-500/30"
-            }`}
-          >
-            {isPlaying ? "⏸ Pause" : "▶ Resume"}
-          </button>
-        )}
       </ControlGroup>
 
       {/* Physics Parameters */}
@@ -186,8 +178,8 @@ export default function ProjectileMotionPage() {
     </div>
   );
 
-  // === DATA PANEL ===
-  const dataPanel = data ? (
+  // === DATA PANEL CONTENT ===
+  const dataPanelContent = data ? (
     <>
       <DataGrid
         data={{
@@ -230,7 +222,11 @@ export default function ProjectileMotionPage() {
         </div>
       )}
     </>
-  ) : null;
+  ) : (
+    <div className="text-center text-gray-500 text-sm py-8">
+      {hasLaunched ? "Waiting for simulation data..." : "Press Launch to begin"}
+    </div>
+  );
 
   return (
     <>
@@ -240,7 +236,7 @@ export default function ProjectileMotionPage() {
         cameraPosition={[70, 40, 70]}
         backgroundColor="#050510"
         controls={null}
-        dataPanel={dataPanel}
+        dataPanel={null}
       >
         <ProjectileMotionSceneComponent
           onDataChange={setData}
@@ -262,17 +258,31 @@ export default function ProjectileMotionPage() {
         />
       </ExperimentContainer>
 
-      <FloatingControlPanel
-        title="🎯 Projectile Controls"
+      {/* Simulation Controller - Always Visible */}
+      <SimulationController
+        isPlaying={isPlaying}
         onPlayPause={() => setIsPlaying((p) => !p)}
         onReset={handleReset}
+        speed={simulationSpeed}
         onSpeedChange={setSimulationSpeed}
-        defaultSpeed={simulationSpeed}
-        defaultPlaying={isPlaying}
+        timeElapsed={timeElapsed}
+      />
+
+      {/* Parameter Controls - Toggleable */}
+      <FloatingControlPanel
+        title="🎯 Projectile Parameters"
         initialPosition={{ x: 20, y: 80 }}
       >
-        {controls}
+        {parameterControls}
       </FloatingControlPanel>
+
+      {/* Data Panel - Floating Toggleable */}
+      <DataPanel
+        isVisible={showDataPanel}
+        onToggle={() => setShowDataPanel(!showDataPanel)}
+      >
+        {dataPanelContent}
+      </DataPanel>
     </>
   );
 }

@@ -7,20 +7,36 @@ export type { ControlPanelProps } from './ControlPanel';
 export { FloatingControlPanel } from './FloatingControlPanel';
 export type { FloatingControlPanelProps } from './FloatingControlPanel';
 
-export { ControlGroup, ControlItem, ControlSlider, DataGrid, EnergyBar } from './ExperimentControls';
-export type { ControlGroupProps, ControlItemProps, ControlSliderProps, DataGridProps, EnergyBarProps } from './ExperimentControls';
+export { SimulationController } from './SimulationController';
+export type { SimulationControllerProps } from './SimulationController';
+
+export { DataPanel } from './DataPanel';
+export type { DataPanelProps } from './DataPanel';
 
 export {
-  DetailsModal,
-  DetailsSection,
-  DetailsFormula,
-  DetailsFormulaList,
-  DetailsButton,
-} from './DetailsModal';
+  ControlGroup,
+  ControlItem,
+  ControlSlider,
+  DataGrid,
+  EnergyBar,
+  ControlDropdown,
+  ControlButton,
+  ControlCheckbox,
+  ControlPresetButtons,
+  ControlProgressBar
+} from './ExperimentControls';
 export type {
-  DetailsModalProps,
-  DetailsSectionProps,
-  DetailsFormulaProps,
-  DetailsFormulaListProps,
-  DetailsButtonProps,
-} from './DetailsModal';
+  ControlGroupProps,
+  ControlItemProps,
+  ControlSliderProps,
+  DataGridProps,
+  EnergyBarProps,
+  ControlDropdownProps,
+  ControlButtonProps,
+  ControlCheckboxProps,
+  ControlPresetButtonsProps,
+  ControlProgressBarProps,
+  DropdownOption,
+  PresetOption,
+  ButtonVariant
+} from './ExperimentControls';

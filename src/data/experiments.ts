@@ -100,7 +100,7 @@ export const experiments: Experiment[] = [
     topics: ["Sound", "Frequency Shift", "Wavefronts", "Relativity"],
   },
   {
-    id: "refraction-reflection",
+    id: "refraction",
     title: "Refraction & Reflection",
     category: "physics",
     difficulty: "Beginner",

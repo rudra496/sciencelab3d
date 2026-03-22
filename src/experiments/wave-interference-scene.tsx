@@ -1,116 +1,143 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useState } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
-import { calculateWaveSpeed, calculateWavelength, calculateAngularFrequency } from "@/utils/physics";
 
 interface WaveInterferenceSceneProps {
   onDataChange?: (data: WaveData) => void;
   frequency?: number;
   amplitude?: number;
+  wavelength?: number;
   sourceSeparation?: number;
-  waveSpeed?: number;
   showNodes?: boolean;
-  showIntensity?: boolean;
   isPlaying?: boolean;
   simulationSpeed?: number;
-  onReset?: () => void;
   resetTrigger?: number;
 }
 
 export interface WaveData {
   wavelength: number;
-  waveNumber: number;
-  angularFrequency: number;
-  maxIntensity: number;
-  constructiveCount: number;
-  destructiveCount: number;
-  isPlaying: boolean;
-  simulationSpeed: number;
+  frequency: number;
+  sourceSeparation: number;
+  maxAmplitude: number;
+  constructiveNodes: number;
+  destructiveNodes: number;
+  waveSpeed: number;
+}
+
+// Physics state stored in refs (NOT React state)
+interface PhysicsState {
+  time: number;
+  maxAmplitude: number;
+  frameCount: number;
+  lastDataUpdate: number;
 }
 
 /**
- * OPTIMIZED Wave Interference Scene
- * - Proper physics: y = A·sin(kr - ωt)
- * - Play/pause support
- * - Speed control
- * - Performance optimized
+ * VISUALLY STUNNING Wave Interference Scene
+ * - 2D wave surface with height = sum of wave amplitudes from 2 point sources
+ * - Vertex colors: red=crest, blue=trough
+ * - Uses refs for physics state (NOT React state)
+ * - Updates React state every 5-10 frames only
+ * - Shows constructive (bright) and destructive (dark) interference nodes
  */
 export function WaveInterferenceSceneComponent({
   onDataChange,
   frequency = 2,
-  amplitude = 0.8,
-  sourceSeparation = 4,
-  waveSpeed = 3,
+  amplitude = 1,
+  wavelength = 3,
+  sourceSeparation = 6,
   showNodes = true,
-  showIntensity = true,
   isPlaying = true,
   simulationSpeed = 1,
-  onReset,
   resetTrigger,
 }: WaveInterferenceSceneProps) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const timeRef = useRef(0);
-  const dataUpdateTimer = useRef(0);
-  const lastDataRef = useRef<WaveData | null>(null);
+  const physicsStateRef = useRef<PhysicsState>({
+    time: 0,
+    maxAmplitude: 0,
+    frameCount: 0,
+    lastDataUpdate: 0,
+  });
 
-  // Calculate physics constants (cached)
-  const physicsParams = useMemo(() => {
-    const wavelength = calculateWavelength(waveSpeed, frequency);
-    const waveNumber = (2 * Math.PI) / wavelength;
-    const angularFreq = calculateAngularFrequency(frequency);
-    return { wavelength, waveNumber, angularFreq };
-  }, [waveSpeed, frequency]);
+  // Calculate derived physics constants (memoized)
+  const waveSpeed = wavelength * frequency;
+  const waveNumber = (2 * Math.PI) / wavelength;
+  const angularFrequency = 2 * Math.PI * frequency;
 
-  // Create geometry once and reuse
+  // High-resolution geometry for smooth wave visualization
   const meshGeometry = useMemo(() => {
-    const segments = 100; // Optimized for performance
-    const size = 30;
+    const segments = 150; // Higher resolution for smoother visuals
+    const size = 40;
     const geo = new THREE.PlaneGeometry(size, size, segments, segments);
     const colors = new Float32Array((segments + 1) * (segments + 1) * 3);
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     return geo;
   }, []);
 
-  // Calculate node and antinode positions (memoized)
-  const markers = useMemo(() => {
-    if (!showNodes) return { nodes: [] as [number, number, number][], antinodes: [] as [number, number, number][] };
+  // Calculate node positions for interference pattern
+  const interferenceNodes = useMemo(() => {
+    if (!showNodes) return { constructive: [] as number[], destructive: [] as number[] };
 
-    const nodes: [number, number, number][] = [];
-    const antinodes: [number, number, number][] = [];
-    const L = 15;
-    const d = sourceSeparation;
-    const { wavelength } = physicsParams;
+    const constructive: number[] = [];
+    const destructive: number[] = [];
+    const maxDistance = 18;
 
-    for (let m = -5; m <= 5; m++) {
-      const y = (m * wavelength * L) / d;
-      if (Math.abs(y) < 12) antinodes.push([L, y, 0.5]);
+    // Calculate hyperbolic nodal lines
+    for (let y = -maxDistance; y <= maxDistance; y += 0.5) {
+      const x = Math.sqrt(maxDistance * maxDistance - y * y);
+      if (isNaN(x)) continue;
 
-      const yDestructive = ((m + 0.5) * wavelength * L) / d;
-      if (Math.abs(yDestructive) < 12) nodes.push([L, yDestructive, 0.3]);
+      // Constructive: path difference = n * wavelength
+      for (let m = 0; m < 10; m++) {
+        const pathDiff = m * wavelength;
+        const d1 = Math.sqrt((x + sourceSeparation/2) ** 2 + y * y);
+        const d2 = Math.sqrt((x - sourceSeparation/2) ** 2 + y * y);
+        if (Math.abs(d1 - d2 - pathDiff) < 0.5) {
+          constructive.push(y);
+          break;
+        }
+      }
+
+      // Destructive: path difference = (n + 0.5) * wavelength
+      for (let m = 0; m < 10; m++) {
+        const pathDiff = (m + 0.5) * wavelength;
+        const d1 = Math.sqrt((x + sourceSeparation/2) ** 2 + y * y);
+        const d2 = Math.sqrt((x - sourceSeparation/2) ** 2 + y * y);
+        if (Math.abs(d1 - d2 - pathDiff) < 0.5) {
+          destructive.push(y);
+          break;
+        }
+      }
     }
 
-    return { nodes, antinodes };
-  }, [physicsParams.wavelength, sourceSeparation, showNodes]);
+    return { constructive, destructive };
+  }, [wavelength, sourceSeparation, showNodes]);
 
   // Reset handler
   useEffect(() => {
     if (resetTrigger !== undefined && resetTrigger > 0) {
-      timeRef.current = 0;
-      dataUpdateTimer.current = 0;
+      physicsStateRef.current = {
+        time: 0,
+        maxAmplitude: 0,
+        frameCount: 0,
+        lastDataUpdate: 0,
+      };
     }
   }, [resetTrigger]);
 
   useFrame((_, delta) => {
     if (!meshRef.current) return;
 
-    // Update time only if playing
+    const state = physicsStateRef;
+
+    // Update time only if playing (using refs, not React state)
     if (isPlaying) {
-      timeRef.current += delta * simulationSpeed;
+      state.current.time += delta * simulationSpeed;
     }
-    const t = timeRef.current;
+    const t = state.current.time;
 
     const posAttr = meshRef.current.geometry.attributes.position as THREE.BufferAttribute;
     const colorAttr = meshRef.current.geometry.attributes.color as THREE.BufferAttribute;
@@ -119,70 +146,96 @@ export function WaveInterferenceSceneComponent({
 
     const s1x = -sourceSeparation / 2;
     const s2x = sourceSeparation / 2;
-    const { waveNumber, angularFreq } = physicsParams;
+    const segments = 150;
+    const size = 40;
+    const halfSize = size / 2;
 
-    let maxIntensity = 0;
-    const segments = 100;
+    let maxAmp = 0;
 
+    // Update each vertex
     for (let i = 0; i <= segments; i++) {
       for (let j = 0; j <= segments; j++) {
         const idx = i * (segments + 1) + j;
-        const x = positions[idx * 3];
-        const y = positions[idx * 3 + 1];
 
+        // Grid position
+        const x = (j / segments) * size - halfSize;
+        const y = (i / segments) * size - halfSize;
+
+        // Distance from each source
         const d1 = Math.sqrt((x - s1x) ** 2 + y * y);
         const d2 = Math.sqrt((x - s2x) ** 2 + y * y);
 
-        const att1 = 1 / Math.sqrt(Math.max(d1, 0.5));
-        const att2 = 1 / Math.sqrt(Math.max(d2, 0.5));
+        // Wave equation: y = A * sin(k*r - ω*t) with distance attenuation
+        const att1 = Math.max(0.1, 1 / (1 + d1 * 0.15));
+        const att2 = Math.max(0.1, 1 / (1 + d2 * 0.15));
 
-        const wave1 = att1 * Math.sin(waveNumber * d1 - angularFreq * t);
-        const wave2 = att2 * Math.sin(waveNumber * d2 - angularFreq * t);
+        const wave1 = att1 * Math.sin(waveNumber * d1 - angularFrequency * t);
+        const wave2 = att2 * Math.sin(waveNumber * d2 - angularFrequency * t);
         const combined = wave1 + wave2;
 
-        positions[idx * 3 + 2] = combined * amplitude;
-
-        // Water colors
-        const normalized = (combined + 2) / 4;
+        // Update height (Z coordinate in plane geometry, becomes Y after rotation)
         const height = combined * amplitude;
-        const depth = Math.max(0, Math.min(1, (height + amplitude * 2) / (amplitude * 4)));
+        positions[idx * 3 + 2] = height;
 
-        colors[idx * 3] = 0.1 + depth * 0.2 + normalized * 0.3;
-        colors[idx * 3 + 1] = 0.4 + depth * 0.3 + normalized * 0.3;
-        colors[idx * 3 + 2] = 0.6 + depth * 0.2 + normalized * 0.2;
+        // Track max amplitude
+        maxAmp = Math.max(maxAmp, Math.abs(height));
 
-        maxIntensity = Math.max(maxIntensity, Math.abs(combined));
+        // Vertex colors: RED = crest (positive), BLUE = trough (negative)
+        // Normalize combined wave from [-2, 2] to [0, 1]
+        const normalized = (combined + 2) / 4;
+
+        if (combined > 0) {
+          // Crest: Red with white highlights
+          const intensity = Math.min(1, combined / 1.5);
+          colors[idx * 3] = 0.8 + intensity * 0.2;     // R: bright red
+          colors[idx * 3 + 1] = intensity * 0.3;       // G: slight
+          colors[idx * 3 + 2] = intensity * 0.2;       // B: minimal
+        } else {
+          // Trough: Blue with cyan highlights
+          const intensity = Math.min(1, Math.abs(combined) / 1.5);
+          colors[idx * 3] = intensity * 0.2;            // R: minimal
+          colors[idx * 3 + 1] = intensity * 0.5;        // G: cyan tint
+          colors[idx * 3 + 2] = 0.8 + intensity * 0.2;  // B: bright blue
+        }
+
+        // Add constructive interference glow (bright yellow-white)
+        if (Math.abs(combined) > 1.5) {
+          const glow = (Math.abs(combined) - 1.5) / 0.5;
+          colors[idx * 3] = Math.min(1, colors[idx * 3] + glow * 0.5);
+          colors[idx * 3 + 1] = Math.min(1, colors[idx * 3 + 1] + glow * 0.5);
+          colors[idx * 3 + 2] = Math.min(1, colors[idx * 3 + 2] + glow * 0.3);
+        }
       }
     }
 
     posAttr.needsUpdate = true;
     colorAttr.needsUpdate = true;
 
-    // Recompute normals every 3rd frame
-    if (Math.floor(t * 60) % 3 === 0) {
+    // Recompute normals every 4th frame for performance
+    state.current.frameCount++;
+    if (state.current.frameCount % 4 === 0) {
       meshRef.current.geometry.computeVertexNormals();
     }
 
-    // Throttled data update
-    dataUpdateTimer.current += delta;
-    if (dataUpdateTimer.current >= 0.1) {
-      dataUpdateTimer.current = 0;
+    // Update physics state
+    state.current.maxAmplitude = maxAmp;
+
+    // Throttled data update: every 5-10 frames
+    state.current.lastDataUpdate++;
+    if (state.current.lastDataUpdate >= 7 && onDataChange) {
+      state.current.lastDataUpdate = 0;
 
       const newData: WaveData = {
-        wavelength: physicsParams.wavelength,
-        waveNumber: physicsParams.waveNumber,
-        angularFrequency: physicsParams.angularFreq,
-        maxIntensity,
-        constructiveCount: markers.antinodes.length,
-        destructiveCount: markers.nodes.length,
-        isPlaying,
-        simulationSpeed,
+        wavelength,
+        frequency,
+        sourceSeparation,
+        maxAmplitude: maxAmp,
+        constructiveNodes: interferenceNodes.constructive.length,
+        destructiveNodes: interferenceNodes.destructive.length,
+        waveSpeed,
       };
 
-      if (!lastDataRef.current || lastDataRef.current.maxIntensity !== newData.maxIntensity) {
-        lastDataRef.current = newData;
-        onDataChange?.(newData);
-      }
+      onDataChange(newData);
     }
   });
 
@@ -193,128 +246,214 @@ export function WaveInterferenceSceneComponent({
     };
   }, [meshGeometry]);
 
+  // Animated source positions
+  const pulseScale = 1 + Math.sin(physicsStateRef.current.time * 5) * 0.15;
+
   return (
     <group>
-      {/* Lighting */}
-      <pointLight position={[0, 10, 0]} intensity={0.5} color="#06b6d4" />
-      <pointLight position={[-10, 5, 5]} intensity={0.3} color="#8b5cf6" />
-      <pointLight position={[10, 5, 5]} intensity={0.3} color="#ec4899" />
+      {/* Enhanced lighting for dramatic effect */}
+      <pointLight position={[0, 15, 0]} intensity={1.2} color="#ffffff" />
+      <pointLight position={[-15, 8, 8]} intensity={0.6} color="#ff4444" />
+      <pointLight position={[15, 8, 8]} intensity={0.6} color="#4444ff" />
+      <spotLight
+        position={[0, 20, 0]}
+        angle={0.3}
+        penumbra={0.5}
+        intensity={0.8}
+        color="#ffffff"
+        castShadow
+      />
 
-      {/* Water surface */}
-      <mesh ref={meshRef} geometry={meshGeometry} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.5, 0]}>
+      {/* Main wave surface with stunning red/blue colors */}
+      <mesh
+        ref={meshRef}
+        geometry={meshGeometry}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.8, 0]}
+        castShadow
+        receiveShadow
+      >
         <meshStandardMaterial
           vertexColors
           side={THREE.DoubleSide}
           transparent
-          opacity={0.85}
-          metalness={0.3}
-          roughness={0.1}
-          envMapIntensity={0.5}
+          opacity={0.9}
+          metalness={0.4}
+          roughness={0.2}
+          envMapIntensity={0.8}
+          emissive="#1a1a2e"
+          emissiveIntensity={0.1}
         />
       </mesh>
 
-      {/* Source emitters */}
-      <group position={[-sourceSeparation / 2, 1, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.4, 32, 32]} />
+      {/* Left source emitter (Red theme) */}
+      <group position={[-sourceSeparation / 2, 1.2, 0]}>
+        {/* Glowing core */}
+        <mesh castShadow>
+          <sphereGeometry args={[0.5, 32, 32]} />
           <meshStandardMaterial
-            color="#8b5cf6"
-            emissive="#8b5cf6"
-            emissiveIntensity={isPlaying ? 1 : 0.3}
-            metalness={0.8}
-            roughness={0.2}
+            color="#ff3333"
+            emissive="#ff0000"
+            emissiveIntensity={isPlaying ? 2 : 0.5}
+            metalness={0.9}
+            roughness={0.1}
           />
         </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={1 + Math.sin(timeRef.current * 3) * 0.1}>
-          <ringGeometry args={[0.5, 0.6, 32]} />
-          <meshBasicMaterial color="#8b5cf6" transparent opacity={0.5} />
+        {/* Pulsing rings */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={pulseScale}>
+          <ringGeometry args={[0.6, 0.75, 32]} />
+          <meshBasicMaterial color="#ff6666" transparent opacity={0.7} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={pulseScale * 1.5}>
+          <ringGeometry args={[0.9, 1.0, 32]} />
+          <meshBasicMaterial color="#ff4444" transparent opacity={0.4} />
+        </mesh>
+        {/* Glow sphere */}
+        <mesh scale={1.2}>
+          <sphereGeometry args={[0.5, 16, 16]} />
+          <meshBasicMaterial
+            color="#ff0000"
+            transparent
+            opacity={isPlaying ? 0.3 : 0.1}
+          />
         </mesh>
       </group>
 
-      <group position={[sourceSeparation / 2, 1, 0]}>
-        <mesh>
-          <sphereGeometry args={[0.4, 32, 32]} />
+      {/* Right source emitter (Blue theme) */}
+      <group position={[sourceSeparation / 2, 1.2, 0]}>
+        {/* Glowing core */}
+        <mesh castShadow>
+          <sphereGeometry args={[0.5, 32, 32]} />
           <meshStandardMaterial
-            color="#ec4899"
-            emissive="#ec4899"
-            emissiveIntensity={isPlaying ? 1 : 0.3}
-            metalness={0.8}
-            roughness={0.2}
+            color="#3333ff"
+            emissive="#0000ff"
+            emissiveIntensity={isPlaying ? 2 : 0.5}
+            metalness={0.9}
+            roughness={0.1}
           />
         </mesh>
-        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={1 + Math.sin(timeRef.current * 3) * 0.1}>
-          <ringGeometry args={[0.5, 0.6, 32]} />
-          <meshBasicMaterial color="#ec4899" transparent opacity={0.5} />
+        {/* Pulsing rings */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={pulseScale}>
+          <ringGeometry args={[0.6, 0.75, 32]} />
+          <meshBasicMaterial color="#6666ff" transparent opacity={0.7} />
+        </mesh>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} scale={pulseScale * 1.5}>
+          <ringGeometry args={[0.9, 1.0, 32]} />
+          <meshBasicMaterial color="#4444ff" transparent opacity={0.4} />
+        </mesh>
+        {/* Glow sphere */}
+        <mesh scale={1.2}>
+          <sphereGeometry args={[0.5, 16, 16]} />
+          <meshBasicMaterial
+            color="#0000ff"
+            transparent
+            opacity={isPlaying ? 0.3 : 0.1}
+          />
         </mesh>
       </group>
 
-      {/* Node and Antinode markers */}
-      {showNodes && (
-        <>
-          {markers.antinodes.map((pos, i) => (
-            <group key={`anti-${i}`} position={pos}>
-              <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[0.3, 0.4, 16]} />
-                <meshBasicMaterial color="#22c55e" transparent opacity={0.8} />
-              </mesh>
-              <mesh position={[0, 0.3, 0]}>
-                <sphereGeometry args={[0.08, 8, 8]} />
-                <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1} />
-              </mesh>
-            </group>
-          ))}
-
-          {markers.nodes.map((pos, i) => (
-            <group key={`node-${i}`} position={pos}>
-              <Line points={[[-0.15, -0.15, 0.1], [0.15, 0.15, 0.1]]} color="#ef4444" lineWidth={3} />
-              <Line points={[[-0.15, 0.15, 0.1], [0.15, -0.15, 0.1]]} color="#ef4444" lineWidth={3} />
-            </group>
-          ))}
-        </>
-      )}
-
-      {/* Wavelength circles */}
-      {Array.from({ length: 4 }).map((_, i) => (
-        <group key={`wave-${i}`} position={[-sourceSeparation / 2, 0.6, 0]}>
+      {/* Wavelength reference circles from left source */}
+      {Array.from({ length: 5 }).map((_, i) => (
+        <group key={`wave1-${i}`} position={[-sourceSeparation / 2, 0.85, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[physicsParams.wavelength * (i + 1), physicsParams.wavelength * (i + 1) + 0.05, 64]} />
-            <meshBasicMaterial color="#8b5cf6" transparent opacity={0.15} />
+            <ringGeometry
+              args={[
+                wavelength * (i + 1) * 0.8,
+                wavelength * (i + 1) * 0.8 + 0.08,
+                64
+              ]}
+            />
+            <meshBasicMaterial
+              color="#ff4444"
+              transparent
+              opacity={0.15 - i * 0.02}
+            />
           </mesh>
         </group>
       ))}
 
-      {Array.from({ length: 4 }).map((_, i) => (
-        <group key={`wave2-${i}`} position={[sourceSeparation / 2, 0.6, 0]}>
+      {/* Wavelength reference circles from right source */}
+      {Array.from({ length: 5 }).map((_, i) => (
+        <group key={`wave2-${i}`} position={[sourceSeparation / 2, 0.85, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[physicsParams.wavelength * (i + 1), physicsParams.wavelength * (i + 1) + 0.05, 64]} />
-            <meshBasicMaterial color="#ec4899" transparent opacity={0.15} />
+            <ringGeometry
+              args={[
+                wavelength * (i + 1) * 0.8,
+                wavelength * (i + 1) * 0.8 + 0.08,
+                64
+              ]}
+            />
+            <meshBasicMaterial
+              color="#4444ff"
+              transparent
+              opacity={0.15 - i * 0.02}
+            />
           </mesh>
         </group>
       ))}
 
-      {/* Basin edges */}
-      <mesh position={[0, 0.4, -15]}>
-        <boxGeometry args={[31, 0.3, 1]} />
-        <meshStandardMaterial color="#1a1a2e" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[0, 0.4, 15]}>
-        <boxGeometry args={[31, 0.3, 1]} />
-        <meshStandardMaterial color="#1a1a2e" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[-15, 0.4, 0]}>
-        <boxGeometry args={[1, 0.3, 30]} />
-        <meshStandardMaterial color="#1a1a2e" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[15, 0.4, 0]}>
-        <boxGeometry args={[1, 0.3, 30]} />
-        <meshStandardMaterial color="#1a1a2e" metalness={0.6} roughness={0.4} />
-      </mesh>
+      {/* Constructive interference nodes (bright yellow/green) */}
+      {showNodes && interferenceNodes.constructive.map((y, i) => (
+        <group key={`constructive-${i}`} position={[12, 0.9, y]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.25, 0.35, 16]} />
+            <meshBasicMaterial
+              color="#00ff88"
+              transparent
+              opacity={0.8}
+            />
+          </mesh>
+          <mesh position={[0, 0.2, 0]}>
+            <sphereGeometry args={[0.1, 8, 8]} />
+            <meshStandardMaterial
+              color="#00ff88"
+              emissive="#00ff88"
+              emissiveIntensity={2}
+            />
+          </mesh>
+        </group>
+      ))}
 
-      {/* Base */}
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[32, 0.5, 32]} />
-        <meshStandardMaterial color="#0a0a15" />
-      </mesh>
+      {/* Destructive interference nodes (dark X marks) */}
+      {showNodes && interferenceNodes.destructive.map((y, i) => (
+        <group key={`destructive-${i}`} position={[12, 0.9, y]}>
+          <Line
+            points={[[-0.2, -0.2, 0.05], [0.2, 0.2, 0.05]]}
+            color="#ffaa00"
+            lineWidth={3}
+          />
+          <Line
+            points={[[-0.2, 0.2, 0.05], [0.2, -0.2, 0.05]]}
+            color="#ffaa00"
+            lineWidth={3}
+          />
+        </group>
+      ))}
+
+      {/* Basin/frame */}
+      <group position={[0, 0.3, 0]}>
+        <mesh position={[0, 0, -20.5]} receiveShadow>
+          <boxGeometry args={[42, 0.4, 1]} />
+          <meshStandardMaterial color="#1a1a2e" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[0, 0, 20.5]} receiveShadow>
+          <boxGeometry args={[42, 0.4, 1]} />
+          <meshStandardMaterial color="#1a1a2e" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[-20.5, 0, 0]} receiveShadow>
+          <boxGeometry args={[1, 0.4, 41]} />
+          <meshStandardMaterial color="#1a1a2e" metalness={0.7} roughness={0.3} />
+        </mesh>
+        <mesh position={[20.5, 0, 0]} receiveShadow>
+          <boxGeometry args={[1, 0.4, 41]} />
+          <meshStandardMaterial color="#1a1a2e" metalness={0.7} roughness={0.3} />
+        </mesh>
+        {/* Base */}
+        <mesh position={[0, -0.2, 0]} receiveShadow>
+          <boxGeometry args={[42, 0.4, 42]} />
+          <meshStandardMaterial color="#0a0a15" metalness={0.3} roughness={0.8} />
+        </mesh>
+      </group>
     </group>
   );
 }

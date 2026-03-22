@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, ReactNode, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
@@ -85,6 +86,7 @@ export function ExperimentContainer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const resizeTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   // Detect device type with debounce
   useEffect(() => {
@@ -214,7 +216,13 @@ export function ExperimentContainer({
       {/* Header Bar */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-linear-to-b from-white/90 via-white/70 to-transparent p-3 sm:p-4 backdrop-blur-sm">
         <div className="flex items-center justify-between max-w-7xl mx-auto px-2 sm:px-0">
-          <div className="flex-1 min-w-0">
+          <button
+            onClick={() => router.push("/")}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white border border-gray-200 text-gray-700 hover:text-gray-900 text-xs sm:text-sm font-medium transition-all shadow-sm hover:shadow-md backdrop-blur-sm flex-shrink-0"
+          >
+            ← <span className="hidden sm:inline">Home</span>
+          </button>
+          <div className="flex-1 min-w-0 mx-2 sm:mx-4">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 tracking-tight truncate">
               {title}
             </h1>

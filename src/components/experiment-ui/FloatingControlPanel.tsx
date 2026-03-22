@@ -4,52 +4,30 @@ import { useState, useRef, useEffect, ReactNode, useCallback, MouseEvent as Reac
 
 export interface FloatingControlPanelProps {
   children?: ReactNode;
-  onPlayPause?: (isPlaying: boolean) => void;
-  onReset?: () => void;
-  onSpeedChange?: (speed: number) => void;
-  defaultSpeed?: number;
-  defaultPlaying?: boolean;
-  showPlayPause?: boolean;
-  showReset?: boolean;
-  showSpeed?: boolean;
   title?: string;
   initialPosition?: { x: number; y: number };
+  defaultCollapsed?: boolean;
 }
 
 /**
  * FLOATING DRAGGABLE Control Panel
  * - Can be dragged around the screen
  * - Collapsible
- * - Play/Pause toggle
- * - Reset button
- * - Speed control (0.1x to 3x)
+ * - Used for parameter controls only
  * - Touch-friendly
  * - Stays within viewport bounds
  * - Performance optimized
  */
 export function FloatingControlPanel({
   children,
-  onPlayPause,
-  onReset,
-  onSpeedChange,
-  defaultSpeed = 1,
-  defaultPlaying = true,
-  showPlayPause = true,
-  showReset = true,
-  showSpeed = true,
   title = "Controls",
   initialPosition,
+  defaultCollapsed = false,
 }: FloatingControlPanelProps) {
-  const [isPlaying, setIsPlaying] = useState(defaultPlaying);
-  const [speed, setSpeed] = useState(defaultSpeed);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [position, setPosition] = useState(() => {
-    if (typeof window === "undefined") return { x: 20, y: 80 };
-    const isSmallScreen = window.innerWidth < 768;
-    return initialPosition || (isSmallScreen ? { x: 10, y: 70 } : { x: 20, y: 80 });
-  });
+  const [position, setPosition] = useState(initialPosition || { x: 20, y: 80 });
 
   const dragOffset = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
@@ -60,8 +38,8 @@ export function FloatingControlPanel({
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (mobile && !initialPosition) {
-        setPosition({ x: 10, y: 70 });
+      if (!initialPosition) {
+        setPosition(mobile ? { x: 10, y: 70 } : { x: 20, y: 80 });
       }
     };
 
@@ -91,23 +69,6 @@ export function FloatingControlPanel({
       window.removeEventListener("click", resetTimeout);
     };
   }, [isMobile]);
-
-  const handlePlayPause = useCallback(() => {
-    const newState = !isPlaying;
-    setIsPlaying(newState);
-    onPlayPause?.(newState);
-  }, [isPlaying, onPlayPause]);
-
-  const handleReset = useCallback(() => {
-    onReset?.();
-    setIsPlaying(defaultPlaying);
-    setSpeed(defaultSpeed);
-  }, [onReset, defaultPlaying, defaultSpeed]);
-
-  const handleSpeedChange = useCallback((newSpeed: number) => {
-    setSpeed(newSpeed);
-    onSpeedChange?.(newSpeed);
-  }, [onSpeedChange]);
 
   // Mouse drag handlers
   const handleMouseDown = useCallback((e: ReactMouseEvent) => {
@@ -200,36 +161,13 @@ export function FloatingControlPanel({
         {/* Header */}
         <div className="flex items-center justify-between sticky top-0 bg-linear-to-r from-blue-600 to-purple-600 py-2 px-3 sm:px-6 -mx-3 border-b border-purple-200 shrink-0">
           <h2 className="text-base sm:text-lg font-bold text-white">{title}</h2>
-          <div className="flex gap-2">
-            {showPlayPause && (
-              <button
-                onClick={handlePlayPause}
-                className={`
-                  px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center gap-1 sm:gap-2
-                  ${isPlaying
-                    ? "bg-orange-600 hover:bg-orange-500 text-white shadow-lg shadow-orange-500/30"
-                    : "bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-500/30"
-                }`}
-              >
-                {isPlaying ? "⏸" : "▶"} <span className="hidden sm:inline">{isPlaying ? "Pause" : "Play"}</span>
-              </button>
-            )}
-            {showReset && (
-              <button
-                onClick={handleReset}
-                className="px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center gap-1 sm:gap-2 bg-gray-200/50 hover:bg-gray-300 text-gray-700 shadow-md"
-              >
-                🔄 <span className="hidden sm:inline">Reset</span>
-              </button>
-            )}
-            <button
-              onClick={() => setIsCollapsed(!isCollapsed)}
-              className="text-gray-600 hover:text-gray-900 text-lg sm:text-xl p-1 transition-colors"
-              aria-label={isCollapsed ? "Expand" : "Collapse"}
-            >
-              {isCollapsed ? "▼" : "▲"}
-            </button>
-          </div>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="text-white hover:text-gray-200 text-lg sm:text-xl p-1 transition-colors"
+            aria-label={isCollapsed ? "Expand" : "Collapse"}
+          >
+            {isCollapsed ? "▼" : "▲"}
+          </button>
         </div>
 
         {/* Content */}

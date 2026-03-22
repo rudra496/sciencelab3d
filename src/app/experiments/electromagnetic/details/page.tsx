@@ -1,0 +1,66 @@
+"use client";
+
+import Link from "next/link";
+
+export default function ElectromagneticDetailsPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-red-950">
+      <div className="sticky top-0 z-50 bg-gray-950/80 backdrop-blur-xl border-b border-red-500/20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-red-400">
+              ⚡ Electromagnetic Field
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">Experiment Details</p>
+          </div>
+          <Link href="/experiments/electromagnetic" className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-all flex items-center gap-2">
+            ← Back to Experiment
+          </Link>
+        </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <section className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+          <h2 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">📖 About This Experiment</h2>
+          <p className="text-gray-300 leading-relaxed">
+            An electric field surrounds electric charges and exerts force on other charges in the field.
+            This simulation visualizes electric field lines, equipotential lines, and the force on a test charge.
+          </p>
+        </section>
+
+        <section className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+          <h2 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">📐 Key Formulas</h2>
+          <div className="space-y-4">
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <code className="text-cyan-300 font-mono">E = F/q₀ = kQ/r²</code>
+              <p className="text-xs text-gray-400 mt-2">Electric field strength</p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <code className="text-cyan-300 font-mono">V = kQ/r</code>
+              <p className="text-xs text-gray-400 mt-2">Electric potential</p>
+            </div>
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <code className="text-cyan-300 font-mono">F = qE</code>
+              <p className="text-xs text-gray-400 mt-2">Force on a charge in electric field</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-gray-900/50 rounded-xl p-6 border border-gray-800">
+          <h2 className="text-xl font-bold text-red-400 mb-4 flex items-center gap-2">🔬 Applications</h2>
+          <ul className="space-y-3 text-gray-300">
+            <li className="flex gap-3"><span className="text-green-400">▸</span><span>Capacitors and electronics</span></li>
+            <li className="flex gap-3"><span className="text-green-400">▸</span><span>Particle accelerators</span></li>
+            <li className="flex gap-3"><span className="text-green-400">▸</span><span>Medical imaging (MRI, EKG)</span></li>
+          </ul>
+        </section>
+
+        <div className="flex justify-center pt-4 pb-8">
+          <Link href="/experiments/electromagnetic" className="px-8 py-4 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 text-white font-bold rounded-xl transition-all shadow-lg text-lg">
+            🚀 Launch Experiment
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
