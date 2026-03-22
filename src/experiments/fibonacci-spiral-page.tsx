@@ -103,7 +103,7 @@ export default function FibonacciSpiralPage() {
       <div className="bg-amber-50/50 rounded-lg p-3 border border-amber-200/50">
         <div className="text-xs text-gray-600 mb-2 font-medium">Golden Ratio: φ = 1.618...</div>
         <div className="text-xs text-gray-500">
-          Found throughout nature: shells, flowers, galaxies
+          Found throughout nature: shells, flowers, galaxies, hurricanes
         </div>
       </div>
 

@@ -49,6 +49,7 @@ export default function CellStructurePage() {
     setShowRibosomes(true);
     setShowLysosomes(true);
     setShowMembrane(true);
+    setCellData({ selectedOrganelle: 'None', organelleCount: 7 });
   }, []);
 
   const handleSpeedChange = useCallback((speed: number) => {
@@ -135,10 +136,11 @@ export default function CellStructurePage() {
     () => (
       <DataGrid
         data={{
-          organelles: { value: cellData.organelleCount, unit: 'total' },
-          selected: { value: 1, unit: cellData.selectedOrganelle },
-          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused' },
+          organelles: { value: cellData.organelleCount, unit: 'total', color: '#06d6a0', decimals: 0 },
+          selected: { value: 1, unit: cellData.selectedOrganelle, color: '#3b82f6', decimals: 0 },
+          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
+        columns={2}
       />
     ),
     [cellData, isPlaying]
@@ -157,7 +159,7 @@ export default function CellStructurePage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="Animal Cell Structure"
-        description="Explore the organelles of an animal cell in 3D"
+        description="Explore the organelles of an animal cell in 3D - Click to highlight"
         cameraPosition={[0, 2, 10]}
         backgroundColor="#050510"
         controls={null}

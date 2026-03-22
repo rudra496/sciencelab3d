@@ -5,187 +5,363 @@ import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
 
+interface Charge {
+  id: string;
+  position: THREE.Vector3;
+  magnitude: number; // Can be positive or negative
+}
+
 interface ElectromagneticSceneProps {
   onDataChange?: (data: EMFieldData) => void;
-  charge1?: number;
-  charge2?: number;
+  charges: Charge[];
   showFieldLines?: boolean;
   showVectors?: boolean;
   showEquipotential?: boolean;
-  testCharge?: number;
+  showForceVectors?: boolean;
+  cursorPosition?: THREE.Vector3;
 }
 
 export interface EMFieldData {
   electricField: number;
   potential: number;
-  force: number;
-  distance: number;
   fieldX: number;
   fieldY: number;
   fieldZ: number;
+  forcesBetweenCharges: { charge1: string; charge2: string; force: number; distance: number }[];
+  numCharges: number;
 }
 
 /**
  * World-class Electromagnetic Field Simulation
+ * Features:
+ * - Dynamic point charges (add/remove/toggle)
+ * - Electric field lines (tube geometry/thick lines)
+ * - Equipotential surfaces (translucent rings)
+ * - Force vectors between charges
+ * - Real-time field calculation at cursor
  */
 export function ElectromagneticSceneComponent({
   onDataChange,
-  charge1 = 5,
-  charge2 = -5,
+  charges,
   showFieldLines = true,
   showVectors = true,
   showEquipotential = true,
-  testCharge = 1,
+  showForceVectors = true,
+  cursorPosition,
 }: ElectromagneticSceneProps) {
-  const testChargeRef = useRef<THREE.Mesh>(null);
   const k = 8.99; // Coulomb constant (scaled)
 
-  const [data, setData] = useState<EMFieldData>({
+  // Refs for physics state (prevent re-renders)
+  const frameCountRef = useRef(0);
+  const lastUpdateTimeRef = useRef(0);
+  const dataRef = useRef<EMFieldData>({
     electricField: 0,
     potential: 0,
-    force: 0,
-    distance: 10,
     fieldX: 0,
     fieldY: 0,
     fieldZ: 0,
+    forcesBetweenCharges: [],
+    numCharges: charges.length,
   });
 
-  // Charge positions
-  const charge1Pos = useMemo(() => new THREE.Vector3(-5, 0, 0), []);
-  const charge2Pos = useMemo(() => new THREE.Vector3(5, 0, 0), []);
+  // React state (updated only every 8 frames)
+  const [data, setData] = useState<EMFieldData>(dataRef.current);
 
-  // Calculate field at a point
-  const calculateField = (point: THREE.Vector3) => {
-    const r1 = point.clone().sub(charge1Pos);
-    const r2 = point.clone().sub(charge2Pos);
-    const dist1 = r1.length();
-    const dist2 = r2.length();
+  // Calculate electric field at a point from all charges
+  const calculateField = (point: THREE.Vector3): THREE.Vector3 => {
+    const totalField = new THREE.Vector3(0, 0, 0);
 
-    const E1 = r1.normalize().multiplyScalar((k * charge1) / (dist1 * dist1));
-    const E2 = r2.normalize().multiplyScalar((k * charge2) / (dist2 * dist2));
+    for (const charge of charges) {
+      if (charge.magnitude === 0) continue;
 
-    return E1.add(E2);
+      const r = point.clone().sub(charge.position);
+      const dist = r.length();
+
+      if (dist < 0.5) continue; // Too close to charge
+
+      // E = k * q / r^2
+      const fieldMagnitude = (k * charge.magnitude) / (dist * dist);
+      const fieldDirection = r.normalize();
+      totalField.add(fieldDirection.multiplyScalar(fieldMagnitude));
+    }
+
+    return totalField;
   };
 
-  // Calculate potential at a point
-  const calculatePotential = (point: THREE.Vector3) => {
-    const r1 = point.distanceTo(charge1Pos);
-    const r2 = point.distanceTo(charge2Pos);
-    return (k * charge1) / r1 + (k * charge2) / r2;
+  // Calculate electric potential at a point from all charges
+  const calculatePotential = (point: THREE.Vector3): number => {
+    let totalPotential = 0;
+
+    for (const charge of charges) {
+      if (charge.magnitude === 0) continue;
+
+      const dist = point.distanceTo(charge.position);
+      if (dist < 0.5) continue;
+
+      // V = k * q / r
+      totalPotential += (k * charge.magnitude) / dist;
+    }
+
+    return totalPotential;
   };
 
+  // Calculate force between two charges
+  const calculateForceBetween = (charge1: Charge, charge2: Charge): { force: number; distance: number } => {
+    const dist = charge1.position.distanceTo(charge2.position);
+    if (dist < 0.1) return { force: 0, distance: dist };
+
+    // F = k * |q1 * q2| / r^2
+    const force = (k * Math.abs(charge1.magnitude * charge2.magnitude)) / (dist * dist);
+    return { force, distance: dist };
+  };
+
+  // Throttled data updates (every 8 frames)
   useFrame(() => {
-    if (!testChargeRef.current) return;
+    frameCountRef.current++;
 
-    const testPos = testChargeRef.current.position;
-    const field = calculateField(testPos);
-    const potential = calculatePotential(testPos);
-    const force = field.length() * testCharge;
-    const dist = testPos.distanceTo(charge1Pos);
+    if (frameCountRef.current % 8 !== 0) return;
+
+    // Calculate field at cursor position
+    const fieldPoint = cursorPosition || new THREE.Vector3(0, 5, 0);
+    const field = calculateField(fieldPoint);
+    const potential = calculatePotential(fieldPoint);
+
+    // Calculate forces between all charge pairs
+    const forces: { charge1: string; charge2: string; force: number; distance: number }[] = [];
+    for (let i = 0; i < charges.length; i++) {
+      for (let j = i + 1; j < charges.length; j++) {
+        const result = calculateForceBetween(charges[i], charges[j]);
+        forces.push({
+          charge1: `Q${i + 1}`,
+          charge2: `Q${j + 1}`,
+          force: result.force,
+          distance: result.distance,
+        });
+      }
+    }
 
     const newData: EMFieldData = {
       electricField: field.length(),
       potential,
-      force,
-      distance: dist,
       fieldX: field.x,
       fieldY: field.y,
       fieldZ: field.z,
+      forcesBetweenCharges: forces,
+      numCharges: charges.length,
     };
 
+    dataRef.current = newData;
     setData(newData);
     onDataChange?.(newData);
   });
 
-  // Field line starting points around charge 1
-  const fieldLineStarts = useMemo(() => {
-    const points: THREE.Vector3[] = [];
-    const numLines = 24;
-    for (let i = 0; i < numLines; i++) {
-      const theta = (i / numLines) * Math.PI * 2;
-      points.push(new THREE.Vector3(
-        charge1Pos.x + Math.cos(theta) * 0.5,
-        Math.sin(theta) * 0.5,
-        0
-      ));
-    }
-    return points;
-  }, [charge1Pos]);
-
-  // Generate field lines
+  // Generate field lines using tube geometry (thick lines)
   const fieldLines = useMemo(() => {
-    return fieldLineStarts.map((start) => {
-      const points: [number, number, number][] = [];
-      let current = start.clone();
+    if (!showFieldLines) return [];
+
+    const lines: React.ReactElement[] = [];
+    const positiveCharges = charges.filter(c => c.magnitude > 0);
+    const negativeCharges = charges.filter(c => c.magnitude < 0);
+
+    // Generate field lines from positive charges
+    for (const charge of positiveCharges) {
+      const numLines = 16;
       const stepSize = 0.3;
-      const maxSteps = 100;
+      const maxSteps = 80;
 
-      for (let i = 0; i < maxSteps; i++) {
-        points.push([current.x, current.y, current.z]);
+      for (let i = 0; i < numLines; i++) {
+        const theta = (i / numLines) * Math.PI * 2;
+        const phi = ((i % 4) / 4) * Math.PI;
 
-        const field = calculateField(current);
-        if (field.length() === 0) break;
+        // Start point near the charge surface
+        let current = new THREE.Vector3(
+          charge.position.x + Math.cos(theta) * Math.sin(phi) * 1.2,
+          charge.position.y + Math.sin(theta) * Math.sin(phi) * 1.2,
+          charge.position.z + Math.cos(phi) * 1.2
+        );
 
-        const direction = field.normalize();
-        current.add(direction.multiplyScalar(stepSize));
+        const points: [number, number, number][] = [[current.x, current.y, current.z]];
 
-        // Stop if too close to either charge
-        if (current.distanceTo(charge1Pos) < 0.5 || current.distanceTo(charge2Pos) < 0.5) {
+        // Trace field line
+        for (let step = 0; step < maxSteps; step++) {
+          const field = calculateField(current);
+          if (field.length() === 0) break;
+
+          const direction = field.normalize();
+          current.add(direction.multiplyScalar(stepSize));
           points.push([current.x, current.y, current.z]);
-          break;
+
+          // Stop if we hit a negative charge
+          let hitNegative = false;
+          for (const negCharge of negativeCharges) {
+            if (current.distanceTo(negCharge.position) < 1.5) {
+              hitNegative = true;
+              break;
+            }
+          }
+          if (hitNegative) break;
+
+          // Stop if too far away
+          if (current.length() > 25) break;
         }
 
-        // Stop if too far
-        if (current.length() > 20) break;
-      }
-
-      return points;
-    });
-  }, [charge1, charge2, fieldLineStarts]);
-
-  // Generate equipotential lines (contours)
-  const equipotentialLines = useMemo(() => {
-    const contours: [number, number, number][][] = [];
-    const numContours = 8;
-    const pointsPerContour = 64;
-
-    for (let c = 0; c < numContours; c++) {
-      const targetPotential = -40 + (c / (numContours - 1)) * 80;
-      const contourPoints: [number, number, number][] = [];
-
-      for (let i = 0; i < pointsPerContour; i++) {
-        const angle = (i / pointsPerContour) * Math.PI * 2;
-        let radius = 3;
-
-        // Binary search for equipotential point
-        for (let j = 0; j < 10; j++) {
-          const testPoint = new THREE.Vector3(
-            Math.cos(angle) * radius,
-            Math.sin(angle) * radius,
-            0
+        if (points.length > 2) {
+          lines.push(
+            <Line
+              key={`field-${charge.id}-${i}`}
+              points={points}
+              color="#fbbf24"
+              lineWidth={3}
+              opacity={0.7}
+              transparent
+            />
           );
-          const pot = calculatePotential(testPoint);
-          if (Math.abs(pot - targetPotential) < 1) break;
-          radius += (targetPotential - pot) > 0 ? 0.2 : -0.2;
-          radius = Math.max(1, Math.min(15, radius));
         }
-
-        contourPoints.push([Math.cos(angle) * radius, Math.sin(angle) * radius, 0]);
-      }
-
-      if (contourPoints.length > 0) {
-        contours.push(contourPoints);
       }
     }
 
-    return contours;
-  }, [charge1, charge2]);
+    return lines;
+  }, [charges, showFieldLines]);
 
-  // Field vector grid
+  // Generate equipotential surfaces as translucent rings
+  const equipotentialSurfaces = useMemo(() => {
+    if (!showEquipotential || charges.length === 0) return [];
+
+    const surfaces: React.ReactElement[] = [];
+    const numPotentials = 6;
+    const ringsPerPotential = 3;
+
+    // Sample potential range
+    const samplePoints = [
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(5, 0, 0),
+      new THREE.Vector3(10, 0, 0),
+    ];
+
+    const potentials = samplePoints.map(p => calculatePotential(p));
+    const minPot = Math.min(...potentials);
+    const maxPot = Math.max(...potentials);
+
+    for (let p = 0; p < numPotentials; p++) {
+      const targetPotential = minPot + (p / (numPotentials - 1)) * (maxPot - minPot);
+
+      // Create rings at different distances
+      for (let r = 0; r < ringsPerPotential; r++) {
+        const baseRadius = 4 + r * 3;
+        const segments = 48;
+        const ringPoints: [number, number, number][] = [];
+
+        for (let i = 0; i <= segments; i++) {
+          const angle = (i / segments) * Math.PI * 2;
+          ringPoints.push([
+            Math.cos(angle) * baseRadius,
+            Math.sin(angle) * baseRadius,
+            0,
+          ]);
+        }
+
+        const hue = (p / numPotentials + r * 0.1) % 1;
+        const color = new THREE.Color().setHSL(hue, 0.7, 0.6);
+
+        surfaces.push(
+          <group key={`equipotential-${p}-${r}`}>
+            <Line
+              points={ringPoints}
+              color={color}
+              lineWidth={2}
+              opacity={0.4}
+              transparent
+            />
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[baseRadius - 0.05, baseRadius + 0.05, 48]} />
+              <meshBasicMaterial
+                color={color}
+                transparent
+                opacity={0.15}
+                side={THREE.DoubleSide}
+              />
+            </mesh>
+          </group>
+        );
+      }
+    }
+
+    return surfaces;
+  }, [charges, showEquipotential]);
+
+  // Force vectors between charges
+  const forceVectors = useMemo(() => {
+    if (!showForceVectors) return [];
+
+    const vectors: React.ReactElement[] = [];
+
+    for (let i = 0; i < charges.length; i++) {
+      for (let j = i + 1; j < charges.length; j++) {
+        const c1 = charges[i];
+        const c2 = charges[j];
+
+        if (c1.magnitude === 0 || c2.magnitude === 0) continue;
+
+        const { force } = calculateForceBetween(c1, c2);
+        if (force < 0.1) continue;
+
+        const direction = c2.position.clone().sub(c1.position).normalize();
+        const isAttractive = (c1.magnitude > 0 && c2.magnitude < 0) || (c1.magnitude < 0 && c2.magnitude > 0);
+
+        // Draw force vector (scaled for visibility)
+        const vectorLength = Math.min(force * 0.5, 5);
+
+        vectors.push(
+          <group key={`force-${i}-${j}`}>
+            {/* Force vector line */}
+            <Line
+              points={[
+                [c1.position.x, c1.position.y, c1.position.z],
+                [
+                  c1.position.x + direction.x * vectorLength * (isAttractive ? 1 : -1),
+                  c1.position.y + direction.y * vectorLength * (isAttractive ? 1 : -1),
+                  c1.position.z + direction.z * vectorLength * (isAttractive ? 1 : -1),
+                ],
+              ]}
+              color={isAttractive ? "#22c55e" : "#ef4444"}
+              lineWidth={4}
+            />
+            {/* Arrow head */}
+            <mesh
+              position={
+                new THREE.Vector3(
+                  c1.position.x + direction.x * vectorLength * (isAttractive ? 1 : -1),
+                  c1.position.y + direction.y * vectorLength * (isAttractive ? 1 : -1),
+                  c1.position.z + direction.z * vectorLength * (isAttractive ? 1 : -1)
+                )
+              }
+              quaternion={new THREE.Quaternion().setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.clone().multiplyScalar(isAttractive ? 1 : -1)
+              )}
+            >
+              <coneGeometry args={[0.2, 0.5, 8]} />
+              <meshStandardMaterial
+                color={isAttractive ? "#22c55e" : "#ef4444"}
+                emissive={isAttractive ? "#22c55e" : "#ef4444"}
+                emissiveIntensity={0.5}
+              />
+            </mesh>
+          </group>
+        );
+      }
+    }
+
+    return vectors;
+  }, [charges, showForceVectors]);
+
+  // Small vector field grid
   const vectorGrid = useMemo(() => {
-    const vectors: { position: THREE.Vector3; direction: THREE.Vector3; magnitude: number }[] = [];
-    const gridSize = 10;
-    const spacing = 2;
+    if (!showVectors) return [];
+
+    const vectors: React.ReactElement[] = [];
+    const gridSize = 6;
+    const spacing = 3;
 
     for (let x = -gridSize; x <= gridSize; x += spacing) {
       for (let y = -gridSize; y <= gridSize; y += spacing) {
@@ -193,150 +369,144 @@ export function ElectromagneticSceneComponent({
         const field = calculateField(pos);
         const magnitude = field.length();
 
-        if (magnitude > 0.1 && magnitude < 100) {
-          vectors.push({
-            position: pos,
-            direction: field.normalize(),
-            magnitude: Math.min(magnitude / 10, 1),
-          });
+        if (magnitude > 0.1 && magnitude < 50) {
+          const dir = field.clone().normalize();
+          const length = Math.min(magnitude * 0.3, 1.5);
+
+          vectors.push(
+            <group key={`grid-${x}-${y}`} position={[x, y, 0]}>
+              <Line
+                points={[[0, 0, 0], [dir.x * length, dir.y * length, dir.z * length]]}
+                color="#06b6d4"
+                lineWidth={1.5}
+                opacity={0.5}
+                transparent
+              />
+            </group>
+          );
         }
       }
     }
 
     return vectors;
-  }, [charge1, charge2]);
+  }, [charges, showVectors]);
 
   return (
     <group>
       {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -12, 0]} receiveShadow>
-        <planeGeometry args={[50, 50]} />
-        <meshStandardMaterial color="#050510" roughness={0.98} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, 0]} receiveShadow>
+        <planeGeometry args={[60, 60]} />
+        <meshStandardMaterial color="#030312" roughness={0.98} />
       </mesh>
-      <gridHelper args={[50, 50, "#1a1a3e", "#0a0a1e"]} position={[0, -11.99, 0]} />
+      <gridHelper args={[60, 30, "#1a1a3e", "#0a0a1e"]} position={[0, -14.99, 0]} />
 
-      {/* Charge 1 (positive) */}
-      <group position={[charge1Pos.x, charge1Pos.y, charge1Pos.z]}>
-        {/* Glow */}
-        <mesh>
-          <sphereGeometry args={[1.5, 32, 32]} />
-          <meshBasicMaterial color="#ef4444" transparent opacity={0.2} />
-        </mesh>
-        {/* Charge */}
-        <mesh castShadow>
-          <sphereGeometry args={[0.8, 32, 32]} />
-          <meshStandardMaterial
-            color="#ef4444"
-            emissive="#ef4444"
-            emissiveIntensity={1}
-            metalness={0.3}
-            roughness={0.4}
-          />
-        </mesh>
-        {/* Plus sign */}
-        <mesh position={[0, 0, 0.81]}>
-          <planeGeometry args={[0.8, 0.2]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-        <mesh position={[0, 0, 0.81]}>
-          <planeGeometry args={[0.2, 0.8]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-      </group>
+      {/* Render all charges */}
+      {charges.map((charge, index) => {
+        const isPositive = charge.magnitude > 0;
+        const color = isPositive ? "#ef4444" : "#3b82f6";
+        const absMagnitude = Math.abs(charge.magnitude);
 
-      {/* Charge 2 (negative) */}
-      <group position={[charge2Pos.x, charge2Pos.y, charge2Pos.z]}>
-        {/* Glow */}
-        <mesh>
-          <sphereGeometry args={[1.5, 32, 32]} />
-          <meshBasicMaterial color="#3b82f6" transparent opacity={0.2} />
-        </mesh>
-        {/* Charge */}
-        <mesh castShadow>
-          <sphereGeometry args={[0.8, 32, 32]} />
-          <meshStandardMaterial
-            color="#3b82f6"
-            emissive="#3b82f6"
-            emissiveIntensity={1}
-            metalness={0.3}
-            roughness={0.4}
-          />
-        </mesh>
-        {/* Minus sign */}
-        <mesh position={[0, 0, 0.81]}>
-          <planeGeometry args={[0.8, 0.2]} />
-          <meshBasicMaterial color="#ffffff" />
-        </mesh>
-      </group>
+        return (
+          <group key={charge.id} position={[charge.position.x, charge.position.y, charge.position.z]}>
+            {/* Outer glow */}
+            <mesh>
+              <sphereGeometry args={[1.5 + absMagnitude * 0.1, 32, 32]} />
+              <meshBasicMaterial color={color} transparent opacity={0.15} />
+            </mesh>
 
-      {/* Field lines */}
-      {showFieldLines && fieldLines.map((line, i) => (
-        <Line key={i} points={line} color="#f59e0b" lineWidth={1} opacity={0.6} transparent />
-      ))}
+            {/* Main charge sphere */}
+            <mesh castShadow>
+              <sphereGeometry args={[0.6 + absMagnitude * 0.05, 32, 32]} />
+              <meshStandardMaterial
+                color={color}
+                emissive={color}
+                emissiveIntensity={1.2}
+                metalness={0.4}
+                roughness={0.3}
+              />
+            </mesh>
 
-      {/* Equipotential lines */}
-      {showEquipotential && equipotentialLines.map((contour, i) => (
-        <Line key={`eq-${i}`} points={contour} color="#8b5cf6" lineWidth={1} opacity={0.3} transparent dashed />
-      ))}
+            {/* Sign indicator */}
+            <group position={[0, 0, 0.7]}>
+              {isPositive ? (
+                <>
+                  {/* Plus sign */}
+                  <mesh>
+                    <planeGeometry args={[0.6, 0.15]} />
+                    <meshBasicMaterial color="#ffffff" />
+                  </mesh>
+                  <mesh>
+                    <planeGeometry args={[0.15, 0.6]} />
+                    <meshBasicMaterial color="#ffffff" />
+                  </mesh>
+                </>
+              ) : (
+                <>
+                  {/* Minus sign */}
+                  <mesh>
+                    <planeGeometry args={[0.6, 0.15]} />
+                    <meshBasicMaterial color="#ffffff" />
+                  </mesh>
+                </>
+              )}
+            </group>
 
-      {/* Field vector grid */}
-      {showVectors && vectorGrid.map((vec, i) => (
-        <group key={`vec-${i}`} position={[vec.position.x, vec.position.y, 0]}>
-          <Line
-            points={[[0, 0, 0], [vec.direction.x * vec.magnitude, vec.direction.y * vec.magnitude, 0]]}
-            color="#22c55e"
-            lineWidth={1}
-            opacity={0.5}
-            transparent
-          />
-        </group>
-      ))}
+            {/* Charge label */}
+            <mesh position={[0, 1.5, 0]}>
+              <planeGeometry args={[1.2, 0.4]} />
+              <meshBasicMaterial color="#ffffff" transparent opacity={0.9} />
+            </mesh>
+          </group>
+        );
+      })}
 
-      {/* Test charge (draggable) */}
-      <mesh
-        ref={testChargeRef}
-        position={[0, 5, 0]}
-        castShadow
-      >
-        <sphereGeometry args={[0.5, 32, 32]} />
-        <meshStandardMaterial
-          color="#f59e0b"
-          emissive="#f59e0b"
-          emissiveIntensity={0.8}
-          metalness={0.5}
-          roughness={0.3}
-        />
-      </mesh>
+      {/* Electric field lines (yellow tubes/thick lines) */}
+      {fieldLines}
 
-      {/* Force vector on test charge */}
-      {showVectors && testChargeRef.current && (
-        <group position={[testChargeRef.current.position.x, testChargeRef.current.position.y, 0]}>
-          <Line
-            points={[[0, 0, 0], [data.fieldX * 0.5, data.fieldY * 0.5, 0]]}
-            color="#ec4899"
-            lineWidth={3}
-          />
-          {/* Arrow head */}
-          <mesh position={[data.fieldX * 0.5, data.fieldY * 0.5, 0]}>
-            <coneGeometry args={[0.15, 0.3, 8]} />
-            <meshStandardMaterial color="#ec4899" emissive="#ec4899" emissiveIntensity={0.5} />
+      {/* Equipotential surfaces (translucent rings) */}
+      {equipotentialSurfaces}
+
+      {/* Force vectors between charges */}
+      {forceVectors}
+
+      {/* Vector field grid */}
+      {vectorGrid}
+
+      {/* Cursor indicator (where field is measured) */}
+      {cursorPosition && (
+        <group position={[cursorPosition.x, cursorPosition.y, cursorPosition.z]}>
+          {/* Cursor ring */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[0.4, 0.5, 32]} />
+            <meshBasicMaterial color="#f59e0b" transparent opacity={0.6} />
           </mesh>
+          {/* Field vector at cursor */}
+          {showVectors && (
+            <Line
+              points={[
+                [0, 0, 0],
+                [data.fieldX * 0.3, data.fieldY * 0.3, data.fieldZ * 0.3],
+              ]}
+              color="#f59e0b"
+              lineWidth={4}
+            />
+          )}
         </group>
       )}
 
       {/* Distance markers */}
       {Array.from({ length: 5 }).map((_, i) => {
-        const dist = 5 + i * 3;
+        const dist = 5 + i * 4;
         return (
           <group key={i}>
-            <mesh position={[dist, -11.5, 0]}>
+            <mesh position={[dist, -14.5, 0]}>
               <boxGeometry args={[0.1, 0.3, 0.1]} />
-              <meshStandardMaterial color="#666" />
+              <meshStandardMaterial color="#333366" />
             </mesh>
             {i > 0 && (
-              <mesh position={[-dist, -11.5, 0]}>
+              <mesh position={[-dist, -14.5, 0]}>
                 <boxGeometry args={[0.1, 0.3, 0.1]} />
-                <meshStandardMaterial color="#666" />
+                <meshStandardMaterial color="#333366" />
               </mesh>
             )}
           </group>

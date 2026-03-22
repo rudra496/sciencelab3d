@@ -56,7 +56,7 @@ export const experiments: Experiment[] = [
     topics: ["Waves", "Superposition", "Interference", "Frequency"],
   },
   {
-    id: "electromagnetic-field",
+    id: "electromagnetic",
     title: "Electromagnetic Field",
     category: "physics",
     difficulty: "Intermediate",
@@ -89,7 +89,7 @@ export const experiments: Experiment[] = [
     topics: ["Gravity", "Orbits", "Kepler's Laws", "Escape Velocity"],
   },
   {
-    id: "doppler-effect",
+    id: "doppler",
     title: "Doppler Effect",
     category: "physics",
     difficulty: "Intermediate",

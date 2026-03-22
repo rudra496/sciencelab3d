@@ -148,9 +148,9 @@ export function ExperimentContainer({
           powerPreference: "high-performance",
           outputColorSpace: THREE.SRGBColorSpace,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.2,
+          toneMappingExposure: 1.0,
         }}
-        dpr={isMobile ? 1 : [1, 2]}
+        dpr={isMobile ? 0.75 : [1, 1.5]}
         className="w-full h-full block touch-none"
         style={{ touchAction: "none" }}
         resize={{ debounce: 0, scroll: false }}
@@ -185,9 +185,9 @@ export function ExperimentContainer({
         <ambientLight intensity={0.4} />
         <directionalLight
           position={[10, 20, 10]}
-          intensity={1.5}
+          intensity={2}
           castShadow
-          shadow-mapSize={[2048, 2048]}
+          shadow-mapSize={[1024, 1024]}
           shadow-camera-far={100}
           shadow-camera-left={-50}
           shadow-camera-right={50}
@@ -195,20 +195,21 @@ export function ExperimentContainer({
           shadow-camera-bottom={-50}
           shadow-bias={-0.0001}
         />
-        <directionalLight position={[-10, 10, -10]} intensity={0.5} />
-        <pointLight position={[0, 15, 0]} intensity={0.3} color="#8b5cf6" />
+        <directionalLight position={[-10, 10, -10]} intensity={0.8} />
+        <hemisphereLight args={["#b1e1ff", "#1a1a2e", 0.6]} />
+        <pointLight position={[0, 15, 0]} intensity={0.5} color="#8b5cf6" />
 
         {enableFog && (
-          <fog attach="fog" args={[new THREE.Color(backgroundColor).getStyle(), 30, 150]} />
+          <fog attach="fog" args={[new THREE.Color(backgroundColor).getStyle(), 60, 200]} />
         )}
-        <Environment preset="night" />
+        <Environment preset="city" />
 
-        {/* Ground */}
-        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
+        {/* Ground - visible grid */}
+        <gridHelper args={[200, 80, "#2a2a4a", "#1a1a3a"]} position={[0, -0.01, 0]} />
+        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
           <planeGeometry args={[200, 200]} />
-          <meshStandardMaterial color={backgroundColor} roughness={0.9} metalness={0.1} />
+          <meshStandardMaterial color="#0a0a1e" roughness={0.95} metalness={0.05} />
         </mesh>
-        <ContactShadows position={[0, 0.01, 0]} opacity={0.4} scale={100} blur={2} far={50} />
 
         <group>{children}</group>
       </Canvas>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -35,24 +35,31 @@ export function FibonacciSpiralSceneComponent({
   onDataChange
 }: FibonacciSpiralSceneProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const frameCountRef = useRef(0);
+
+  // Physics state in refs
   const timeRef = useRef(0);
+  const rotationRef = useRef(0);
+
+  // React state for UI updates (throttled)
+  const [currentAngle, setCurrentAngle] = useState(0);
 
   const goldenRatio = (1 + Math.sqrt(5)) / 2;
 
   // Generate Fibonacci spiral points
   const spiralPoints = useMemo(() => {
-    const points: THREE.Vector3[] = [];
+    const pts: THREE.Vector3[] = [];
     for (let i = 0; i < pointsCount; i++) {
       const phi = i * 137.508 * (Math.PI / 180); // Golden angle
       const r = scale * Math.sqrt(i) * 0.5;
 
-      points.push(new THREE.Vector3(
+      pts.push(new THREE.Vector3(
         r * Math.cos(phi),
         (i * 0.05) - (pointsCount * 0.025),
         r * Math.sin(phi)
       ));
     }
-    return points;
+    return pts;
   }, [pointsCount, scale]);
 
   // Generate connecting line segments
@@ -87,8 +94,9 @@ export function FibonacciSpiralSceneComponent({
 
   // Report data changes
   useEffect(() => {
+    setCurrentAngle(rotationRef.current);
     onDataChange?.({
-      currentAngle: timeRef.current * rotationSpeed,
+      currentAngle: rotationRef.current,
       pointsCount,
       goldenRatio,
     });
@@ -97,8 +105,21 @@ export function FibonacciSpiralSceneComponent({
   useFrame((_, delta) => {
     if (!isPlaying || !groupRef.current) return;
 
+    frameCountRef.current++;
     timeRef.current += delta;
-    groupRef.current.rotation.y += delta * rotationSpeed * 0.2;
+    rotationRef.current += delta * rotationSpeed * 0.2;
+
+    groupRef.current.rotation.y = rotationRef.current;
+
+    // Update React state every 8 frames
+    if (frameCountRef.current % 8 === 0) {
+      setCurrentAngle(rotationRef.current);
+      onDataChange?.({
+        currentAngle: rotationRef.current,
+        pointsCount,
+        goldenRatio,
+      });
+    }
   });
 
   return (
@@ -130,50 +151,105 @@ export function FibonacciSpiralSceneComponent({
           <Line key={`line-${index}`} points={points} color={color} lineWidth={1} opacity={0.5} transparent />
         ))}
 
+        {/* Golden spiral curve */}
+        <Line
+          points={spiralPoints.map(p => [p.x, p.y, p.z] as [number, number, number])}
+          color="#fbbf24"
+          lineWidth={2}
+          opacity={0.7}
+          transparent
+        />
+
         {/* Golden rectangle visualization */}
         <group position={[5, 2, 0]}>
           {Array.from({ length: 6 }, (_, i) => {
             const fibNum = fibonacciNumbers[i] || 1;
             const size = fibNum * 0.3;
             const offset = i * 1.2;
+            const color = new THREE.Color().setHSL(i * 0.15, 0.6, 0.4);
             return (
-              <mesh key={i} position={[offset, 0, 0]}>
-                <boxGeometry args={[size, size, 0.1]} />
-                <meshStandardMaterial
-                  color={new THREE.Color().setHSL(i * 0.15, 0.6, 0.4)}
-                  transparent
-                  opacity={0.6}
-                />
+              <group key={i} position={[offset, 0, 0]}>
+                <mesh>
+                  <boxGeometry args={[size, size, 0.1]} />
+                  <meshStandardMaterial
+                    color={color}
+                    transparent
+                    opacity={0.6}
+                  />
+                </mesh>
+                <mesh position={[0, 0, 0.06]}>
+                  <edgesGeometry args={[new THREE.BoxGeometry(size, size, 0.1)]} />
+                  <lineBasicMaterial color={color} />
+                </mesh>
+              </group>
+            );
+          })}
+        </group>
+
+        {/* Nautilus shell approximation */}
+        <group position={[-5, -1, 0]}>
+          {Array.from({ length: 60 }, (_, i) => {
+            const angle = i * 0.3;
+            const radius = 0.1 + i * 0.06;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            const size = 0.04 + i * 0.008;
+            const color = new THREE.Color().setHSL((i * 0.015 + 0.1) % 1, 0.7, 0.5);
+
+            return (
+              <mesh key={i} position={[x, y, 0]}>
+                <sphereGeometry args={[size, 8, 8]} />
+                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.2} />
+              </mesh>
+            );
+          })}
+        </group>
+
+        {/* Sunflower-like pattern */}
+        <group position={[0, -2, 3]}>
+          {Array.from({ length: Math.min(pointsCount, 100) }, (_, i) => {
+            const phi = i * 137.508 * (Math.PI / 180);
+            const r = 0.15 * Math.sqrt(i);
+            const x = r * Math.cos(phi);
+            const y = r * Math.sin(phi);
+            const size = 0.03 + (i / pointsCount) * 0.05;
+            const color = new THREE.Color().setHSL((i * 0.01 + 0.08) % 1, 0.8, 0.5);
+
+            return (
+              <mesh key={i} position={[x, y, 0]}>
+                <sphereGeometry args={[size, 8, 8]} />
+                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.3} />
+              </mesh>
+            );
+          })}
+        </group>
+
+        {/* Pinecone-like spiral */}
+        <group position={[0, 1, -3]}>
+          {Array.from({ length: Math.min(pointsCount, 80) }, (_, i) => {
+            const phi = i * 137.508 * (Math.PI / 180);
+            const r = 0.12 * Math.sqrt(i);
+            const x = r * Math.cos(phi);
+            const z = r * Math.sin(phi);
+            const y = i * 0.03 - 1.2;
+            const size = 0.025 + (i / pointsCount) * 0.04;
+            const color = new THREE.Color().setHSL((i * 0.01 + 0.05) % 1, 0.75, 0.4);
+
+            return (
+              <mesh key={i} position={[x, y, z]}>
+                <coneGeometry args={[size, size * 1.5, 6]} />
+                <meshStandardMaterial color={color} roughness={0.6} />
               </mesh>
             );
           })}
         </group>
       </group>
 
-      {/* Label for golden ratio */}
-      <mesh position={[0, 4, 0]}>
-        <planeGeometry args={[6, 0.8]} />
+      {/* Golden ratio display */}
+      <mesh position={[0, 4.5, 0]}>
+        <planeGeometry args={[5, 0.6]} />
         <meshBasicMaterial color="#fbbf24" transparent opacity={0.8} />
       </mesh>
-
-      {/* Nautilus shell approximation */}
-      <group position={[-5, -1, 0]}>
-        {Array.from({ length: 50 }, (_, i) => {
-          const angle = i * 0.5;
-          const radius = 0.1 + i * 0.08;
-          const x = Math.cos(angle) * radius;
-          const y = Math.sin(angle) * radius;
-          const size = 0.05 + i * 0.01;
-          const color = new THREE.Color().setHSL((i * 0.02 + 0.1) % 1, 0.7, 0.5);
-
-          return (
-            <mesh key={i} position={[x, y, 0]}>
-              <sphereGeometry args={[size, 8, 8]} />
-              <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.2} />
-            </mesh>
-          );
-        })}
-      </group>
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   RefractionSceneComponent,
@@ -27,12 +27,23 @@ export default function RefractionPage() {
   const [resetTrigger, setResetTrigger] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
 
-  // Physics
+  // Physics parameters
   const [incidentAngle, setIncidentAngle] = useState(45);
-  const [n1, setN1] = useState(1.0);
-  const [n2, setN2] = useState(1.5);
+  const [n2, setN2] = useState(1.5); // Medium 2 refractive index (medium 1 is always air = 1.0)
   const [showNormal, setShowNormal] = useState(true);
   const [showAngles, setShowAngles] = useState(true);
+
+  // Medium presets
+  const mediumPresets: Record<string, number> = {
+    air: 1.0,
+    water: 1.33,
+    glass: 1.5,
+    diamond: 2.42,
+  };
+
+  const handleMediumPreset = (medium: string) => {
+    setN2(mediumPresets[medium] || 1.5);
+  };
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
   const handleReset = () => {
@@ -45,50 +56,57 @@ export default function RefractionPage() {
   // === PARAMETER CONTROLS ===
   const parameterControls = (
     <div className="space-y-4">
-      {/* Physics Parameters */}
-      <ControlGroup title="Refractive Indices">
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm text-gray-700 block mb-2">Medium 1 (n₁)</label>
-            <select
-              value={n1}
-              onChange={(e) => setN1(parseFloat(e.target.value))}
-              className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300"
-            >
-              <option value={1.0}>Vacuum/Air (1.00)</option>
-              <option value={1.33}>Water (1.33)</option>
-              <option value={1.5}>Glass (1.50)</option>
-              <option value={2.42}>Diamond (2.42)</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-gray-700 block mb-2">Medium 2 (n₂)</label>
-            <select
-              value={n2}
-              onChange={(e) => setN2(parseFloat(e.target.value))}
-              className="w-full bg-white text-gray-900 rounded-lg px-3 py-2 border border-gray-300"
-            >
-              <option value={1.0}>Vacuum/Air (1.00)</option>
-              <option value={1.33}>Water (1.33)</option>
-              <option value={1.5}>Glass (1.50)</option>
-              <option value={2.42}>Diamond (2.42)</option>
-            </select>
-          </div>
-        </div>
-      </ControlGroup>
-
-      <ControlGroup title="Incident Angle">
+      {/* Incident Angle */}
+      <ControlGroup title="Light Source">
         <ControlSlider
-          label="Angle (θᵢ)"
+          label="Angle of Incidence (θᵢ)"
           value={incidentAngle}
           unit="°"
           min={0}
           max={89}
           step={1}
-          color="#ec4899"
+          color="#ffffff"
           onChange={setIncidentAngle}
           decimals={0}
         />
+      </ControlGroup>
+
+      {/* Medium 2 Properties */}
+      <ControlGroup title="Medium 2 (Bottom)">
+        <div className="space-y-3">
+          {/* Refractive Index Slider */}
+          <ControlSlider
+            label="Refractive Index (n₂)"
+            value={n2}
+            unit=""
+            min={1.0}
+            max={2.5}
+            step={0.01}
+            color="#06b6d4"
+            onChange={setN2}
+            decimals={2}
+          />
+
+          {/* Medium Presets */}
+          <div className="pt-2">
+            <label className="text-xs text-gray-600 block mb-2">Quick Presets:</label>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(mediumPresets).map(([name, value]) => (
+                <button
+                  key={name}
+                  onClick={() => handleMediumPreset(name)}
+                  className={`py-1.5 px-3 text-xs font-medium rounded-lg transition-all ${
+                    Math.abs(n2 - value) < 0.01
+                      ? "bg-cyan-500 text-white ring-2 ring-cyan-300"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
+                  }`}
+                >
+                  {name.charAt(0).toUpperCase() + name.slice(1)} ({value})
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </ControlGroup>
 
       {/* Display Options */}
@@ -103,16 +121,22 @@ export default function RefractionPage() {
               type="checkbox"
               checked={opt.checked}
               onChange={(e) => opt.onChange(e.target.checked)}
-              className="w-4 h-4 rounded accent-teal-500"
+              className="w-4 h-4 rounded accent-cyan-500"
             />
           </label>
         ))}
       </ControlGroup>
 
+      {/* Medium 1 Info */}
+      <div className="p-3 bg-sky-50 border border-sky-200 rounded-lg">
+        <div className="text-sm font-medium text-sky-800">Medium 1 (Top)</div>
+        <div className="text-xs text-sky-600">Always Air (n₁ = 1.00)</div>
+      </div>
+
       {/* Details link */}
       <button
         onClick={() => router.push("/experiments/refraction/details")}
-        className="w-full py-2.5 bg-gradient-to-r from-teal-100 to-teal-200 hover:from-teal-200 hover:to-teal-300 text-teal-700 font-medium text-sm rounded-lg transition-all border border-teal-300/50 flex items-center justify-center gap-2"
+        className="w-full py-2.5 bg-gradient-to-r from-cyan-100 to-cyan-200 hover:from-cyan-200 hover:to-cyan-300 text-cyan-700 font-medium text-sm rounded-lg transition-all border border-cyan-300/50 flex items-center justify-center gap-2"
       >
         📖 View Experiment Details
       </button>
@@ -124,27 +148,52 @@ export default function RefractionPage() {
     <>
       <DataGrid
         data={{
-          incidentAngle: { value: data.incidentAngle, unit: "°", color: "#ef4444", decimals: 1 },
-          refractedAngle: { value: data.refractedAngle, unit: "°", color: "#3b82f6", decimals: 1 },
+          incidentAngle: { value: data.incidentAngle, unit: "°", color: "#ffffff", decimals: 1 },
+          reflectedAngle: { value: data.reflectedAngle, unit: "°", color: "#fbbf24", decimals: 1 },
+          refractedAngle: { value: data.refractedAngle, unit: "°", color: "#06b6d4", decimals: 1 },
+          n1: { value: data.n1, unit: "", color: "#94a3b8", decimals: 2 },
+          n2: { value: data.n2, unit: "", color: "#06b6d4", decimals: 2 },
           criticalAngle: { value: data.criticalAngle, unit: "°", color: "#f59e0b", decimals: 1 },
         }}
-        columns={3}
+        columns={2}
       />
+
+      {/* TIR Warning */}
       {data.isTIR && (
-        <div className="mt-3 p-3 bg-red-900/30 border border-red-500/50 rounded-lg text-red-400 text-sm font-semibold">
-          ⚠️ Total Internal Reflection
+        <div className="mt-3 p-3 bg-red-900/30 border border-red-500/50 rounded-lg">
+          <div className="text-red-400 text-sm font-semibold flex items-center gap-2">
+            ⚠️ Total Internal Reflection
+          </div>
+          <div className="text-red-300 text-xs mt-1">
+            Incident angle exceeds critical angle
+          </div>
         </div>
       )}
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div className="p-2 bg-gray-800/50 rounded">
-          <span className="text-gray-500">Reflectance</span>
-          <div className="font-mono text-purple-300">{(data.reflectance * 100).toFixed(1)}%</div>
+
+      {/* Physics Formula */}
+      <div className="mt-3 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+        <div className="text-gray-400 text-xs mb-1">Snell's Law:</div>
+        <div className="font-mono text-cyan-300 text-sm">
+          n₁ × sin(θᵢ) = n₂ × sin(θₜ)
         </div>
-        <div className="p-2 bg-gray-800/50 rounded">
-          <span className="text-gray-500">Transmittance</span>
-          <div className="font-mono text-cyan-300">{(data.transmittance * 100).toFixed(1)}%</div>
+        <div className="text-gray-500 text-xs mt-2">
+          {data.n1.toFixed(2)} × sin({data.incidentAngle.toFixed(1)}°) ={" "}
+          {data.n2.toFixed(2)} × sin({data.refractedAngle.toFixed(1)}°)
         </div>
       </div>
+
+      {/* Critical Angle Info */}
+      {data.criticalAngle < 90 && (
+        <div className="mt-3 p-3 bg-amber-900/20 border border-amber-500/30 rounded-lg">
+          <div className="text-amber-400 text-xs font-medium">Critical Angle:</div>
+          <div className="text-amber-300 text-sm font-mono">
+            θc = {data.criticalAngle.toFixed(1)}°
+          </div>
+          <div className="text-amber-200/70 text-xs mt-1">
+            TIR occurs when θᵢ &gt; θc
+          </div>
+        </div>
+      )}
     </>
   ) : (
     <div className="text-center text-gray-500 text-sm py-8">
@@ -156,8 +205,8 @@ export default function RefractionPage() {
     <>
       <ExperimentContainer
         title="Refraction & Reflection"
-        description="Explore Snell's law and total internal reflection"
-        cameraPosition={[30, 18, 35]}
+        description="Explore Snell's law and total internal reflection at an optical interface"
+        cameraPosition={[25, 15, 35]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={null}
@@ -165,10 +214,10 @@ export default function RefractionPage() {
         <RefractionSceneComponent
           onDataChange={setData}
           incidentAngle={incidentAngle}
-          n1={n1}
           n2={n2}
           showNormal={showNormal}
           showAngles={showAngles}
+          resetTrigger={resetTrigger}
         />
       </ExperimentContainer>
 

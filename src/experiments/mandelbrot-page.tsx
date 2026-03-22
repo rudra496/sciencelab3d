@@ -28,6 +28,7 @@ export default function MandelbrotPage() {
   const [zoom, setZoom] = useState(1);
   const [colorScheme, setColorScheme] = useState<typeof COLOR_SCHEMES[number]>("rainbow");
   const [rotationSpeed, setRotationSpeed] = useState(0.5);
+  const [resolution, setResolution] = useState(60);
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
   const handleReset = () => {
@@ -36,6 +37,7 @@ export default function MandelbrotPage() {
     setSimulationSpeed(1);
     setMaxIterations(50);
     setZoom(1);
+    setResolution(60);
   };
 
   const parameterControls = (
@@ -64,13 +66,24 @@ export default function MandelbrotPage() {
           decimals={1}
         />
         <ControlSlider
+          label="Resolution"
+          value={resolution}
+          unit="pts"
+          min={20}
+          max={100}
+          step={10}
+          color="#7c3aed"
+          onChange={setResolution}
+          decimals={0}
+        />
+        <ControlSlider
           label="Rotation Speed"
           value={rotationSpeed}
           unit=""
           min={0}
           max={2}
           step={0.1}
-          color="#7c3aed"
+          color="#6d28d9"
           onChange={setRotationSpeed}
           decimals={1}
         />
@@ -94,6 +107,14 @@ export default function MandelbrotPage() {
         </div>
       </ControlGroup>
 
+      <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-200/50">
+        <div className="text-xs text-gray-600 mb-2 font-medium">Mandelbrot Set</div>
+        <div className="text-xs text-gray-500">
+          z = z² + c<br />
+          Points that don't escape to infinity
+        </div>
+      </div>
+
       <button
         onClick={() => router.push("/experiments/mandelbrot/details")}
         className="w-full py-2.5 bg-gradient-to-r from-purple-100 to-purple-200 hover:from-purple-200 hover:to-purple-300 text-purple-700 font-medium text-sm rounded-lg transition-all border border-purple-300/50 flex items-center justify-center gap-2"
@@ -110,7 +131,7 @@ export default function MandelbrotPage() {
           iterations: { value: data.iterations, unit: "max", color: "#a855f7", decimals: 0 },
           zoom: { value: data.zoom, unit: "×", color: "#8b5cf6", decimals: 1 },
           centerX: { value: data.centerX, unit: "Re", color: "#7c3aed", decimals: 2 },
-          centerY: { value: data.centerY, unit: "Im", color: "#6d28d9", decimals: 2 },
+          points: { value: data.pointsRendered, unit: "pts", color: "#6d28d9", decimals: 0 },
         }}
         columns={2}
       />
@@ -142,6 +163,7 @@ export default function MandelbrotPage() {
           zoom={zoom}
           colorScheme={colorScheme}
           rotationSpeed={rotationSpeed}
+          resolution={resolution}
           isPlaying={isPlaying}
         />
       </ExperimentContainer>

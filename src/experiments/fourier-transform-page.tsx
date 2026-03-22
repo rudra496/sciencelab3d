@@ -13,6 +13,8 @@ import {
   DataPanel,
 } from "@/components/experiment-ui";
 
+const WAVEFORMS = ["square", "triangle", "sawtooth", "custom"] as const;
+
 export default function FourierTransformPage() {
   const router = useRouter();
   const [data, setData] = useState<FourierTransformData | null>(null);
@@ -27,6 +29,7 @@ export default function FourierTransformPage() {
   const [frequency, setFrequency] = useState(1);
   const [harmonicCount, setHarmonicCount] = useState(3);
   const [waveSpeed, setWaveSpeed] = useState(1);
+  const [waveformType, setWaveformType] = useState<typeof WAVEFORMS[number]>("square");
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
   const handleReset = () => {
@@ -36,6 +39,7 @@ export default function FourierTransformPage() {
     setFrequency(1);
     setHarmonicCount(3);
     setWaveSpeed(1);
+    setWaveformType("square");
   };
 
   // === PARAMETER CONTROLS ===
@@ -77,29 +81,47 @@ export default function FourierTransformPage() {
         />
       </ControlGroup>
 
+      <ControlGroup title="Waveform Type">
+        <div className="grid grid-cols-2 gap-2">
+          {WAVEFORMS.map((wf) => (
+            <button
+              key={wf}
+              onClick={() => setWaveformType(wf)}
+              className={`py-2 px-3 text-sm rounded-lg transition-all capitalize ${
+                waveformType === wf
+                  ? "bg-purple-600 text-white"
+                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+            >
+              {wf}
+            </button>
+          ))}
+        </div>
+      </ControlGroup>
+
       <div className="bg-purple-50/50 rounded-lg p-3 border border-purple-200/50">
         <div className="text-xs text-gray-600 mb-2 font-medium">Quick Presets</div>
         <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => { setFrequency(1); setHarmonicCount(3); }}
+            onClick={() => { setFrequency(1); setHarmonicCount(5); setWaveformType("square"); }}
             className="py-1.5 px-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded transition-all"
           >
             Square Wave
           </button>
           <button
-            onClick={() => { setFrequency(1); setHarmonicCount(5); }}
+            onClick={() => { setFrequency(1); setHarmonicCount(5); setWaveformType("triangle"); }}
             className="py-1.5 px-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded transition-all"
           >
             Triangle
           </button>
           <button
-            onClick={() => { setFrequency(1.5); setHarmonicCount(7); }}
+            onClick={() => { setFrequency(1); setHarmonicCount(7); setWaveformType("sawtooth"); }}
             className="py-1.5 px-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded transition-all"
           >
             Sawtooth
           </button>
           <button
-            onClick={() => { setFrequency(0.5); setHarmonicCount(2); }}
+            onClick={() => { setFrequency(0.5); setHarmonicCount(2); setWaveformType("custom"); }}
             className="py-1.5 px-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs rounded transition-all"
           >
             Simple
@@ -124,12 +146,13 @@ export default function FourierTransformPage() {
           amplitude: { value: Math.abs(data.currentAmplitude), unit: "units", color: "#8b5cf6", decimals: 2 },
           frequency: { value: data.frequency, unit: "Hz", color: "#a78bfa", decimals: 1 },
           harmonics: { value: data.harmonicCount, unit: "waves", color: "#c4b5fd", decimals: 0 },
+          waveform: { value: 0, unit: data.waveformType, color: "#ddd6fe", decimals: 0 },
         }}
         columns={1}
       />
       <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
         <div className="text-center font-mono text-purple-400 text-sm">
-          f(x) = Σ(1/n)·sin(n·ω·x)
+          f(x) = Σ aₙ·sin(n·ω·x)
         </div>
       </div>
     </>
@@ -155,6 +178,7 @@ export default function FourierTransformPage() {
           harmonicCount={harmonicCount}
           waveSpeed={waveSpeed}
           isPlaying={isPlaying}
+          waveformType={waveformType}
         />
       </ExperimentContainer>
 

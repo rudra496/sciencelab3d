@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Line } from "@react-three/drei";
 import * as THREE from "three";
 
 export interface ThermochemistryData {
@@ -10,6 +11,7 @@ export interface ThermochemistryData {
   transitionStateEnergy: number;
   progress: number;
   isAnimating: boolean;
+  temperatureChange: number;
 }
 
 export interface ThermochemistrySceneProps {
@@ -22,7 +24,7 @@ export interface ThermochemistrySceneProps {
 }
 
 /**
- * Thermochemistry scene component
+ * Thermochemistry scene component - Performance optimized
  * Visualizes exothermic and endothermic reactions with energy diagrams
  */
 export function ThermochemistrySceneComponent({
@@ -34,39 +36,29 @@ export function ThermochemistrySceneComponent({
   onDataChange
 }: ThermochemistrySceneProps) {
   const reactionRef = useRef<THREE.Group>(null);
-  const energyDiagramRef = useRef<THREE.Group>(null);
+
+  // Performance refs - physics state updated every frame
   const progressRef = useRef(0);
+  const frameCountRef = useRef(0);
 
-  useFrame((_, delta) => {
-    if (!reactionRef.current) return;
-
-    if (isAnimating && progressRef.current < 1) {
-      progressRef.current = Math.min(progressRef.current + delta * 0.3, 1);
-      onProgressChange?.(progressRef.current);
-    }
-
-    // Rotate molecules
-    reactionRef.current.rotation.y += delta * 0.2;
+  // React state - updated only every 8 frames
+  const [data, setData] = useState<ThermochemistryData>({
+    reactantEnergy: 80,
+    productEnergy: 40,
+    transitionStateEnergy: 130,
+    progress: 0,
+    isAnimating: false,
+    temperatureChange: 0,
   });
 
   // Calculate energy levels
   const reactantEnergy = reactionType === "exothermic" ? 80 : 20;
   const productEnergy = reactionType === "exothermic" ? reactantEnergy - enthalpyChange : reactantEnergy + enthalpyChange;
   const transitionStateEnergy = reactantEnergy + activationEnergy;
+  const temperatureChange = reactionType === "exothermic" ? enthalpyChange : -enthalpyChange;
 
-  // Report data changes
-  useEffect(() => {
-    onDataChange?.({
-      reactantEnergy,
-      productEnergy,
-      transitionStateEnergy,
-      progress: progressRef.current,
-      isAnimating
-    });
-  }, [reactantEnergy, productEnergy, transitionStateEnergy, isAnimating, onDataChange]);
-
-  // Energy diagram points
-  const energyCurve = useMemo(() => {
+  // Energy diagram points using useMemo
+  const energyCurvePoints = useMemo(() => {
     const points: [number, number, number][] = [];
     const segments = 50;
 
@@ -92,22 +84,58 @@ export function ThermochemistrySceneComponent({
     return points;
   }, [reactantEnergy, productEnergy, activationEnergy]);
 
-  // Molecule visualization
-  const getMoleculeScale = () => {
-    const progress = progressRef.current;
+  // Energy level indicator positions
+  const energyIndicators = useMemo(() => ({
+    reactant: { x: -3.5, y: reactantEnergy / 40 - 1 },
+    transition: { x: 0, y: transitionStateEnergy / 40 - 1 },
+    product: { x: 3.5, y: productEnergy / 40 - 1 },
+  }), [reactantEnergy, transitionStateEnergy, productEnergy]);
+
+  // Molecule scale calculation
+  const getMoleculeScale = (progress: number) => {
     if (progress < 0.3) return 1;
-    if (progress < 0.5) return 1 + (progress - 0.3) * 2; // Expand at transition state
-    if (progress < 0.7) return 1.4 - (progress - 0.5) * 2; // Contract to products
+    if (progress < 0.5) return 1 + (progress - 0.3) * 2;
+    if (progress < 0.7) return 1.4 - (progress - 0.5) * 2;
     return 1;
   };
 
-  const moleculeScale = getMoleculeScale();
+  useFrame((_, delta) => {
+    if (!reactionRef.current) return;
+
+    // Animate progress
+    if (isAnimating && progressRef.current < 1) {
+      progressRef.current = Math.min(progressRef.current + delta * 0.3, 1);
+    }
+
+    // Rotate molecules
+    reactionRef.current.rotation.y += delta * 0.2;
+
+    frameCountRef.current++;
+
+    // Update React state only every 8 frames
+    if (frameCountRef.current % 8 === 0) {
+      onProgressChange?.(progressRef.current);
+
+      const newData: ThermochemistryData = {
+        reactantEnergy,
+        productEnergy,
+        transitionStateEnergy,
+        progress: progressRef.current,
+        isAnimating,
+        temperatureChange: temperatureChange * progressRef.current,
+      };
+
+      setData(newData);
+      onDataChange?.(newData);
+    }
+  });
+
   const progress = progressRef.current;
 
   return (
     <>
       {/* Energy diagram */}
-      <group ref={energyDiagramRef} position={[0, -2, -2]}>
+      <group position={[0, -2, -2]}>
         {/* Axes */}
         <mesh position={[0, -1, 0]}>
           <boxGeometry args={[9, 0.05, 0.05]} />
@@ -118,43 +146,37 @@ export function ThermochemistrySceneComponent({
           <meshStandardMaterial color="#666" />
         </mesh>
 
-        {/* Energy curve */}
-        <mesh>
-          <tubeGeometry args={[new THREE.CatmullRomCurve3(energyCurve.map(p => new THREE.Vector3(...p))), 64, 0.05, 8, false]} />
-          <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.3} />
-        </mesh>
+        {/* Energy curve using Line from drei */}
+        <Line
+          points={energyCurvePoints}
+          color="#ffffff"
+          lineWidth={3}
+          opacity={0.9}
+        />
 
         {/* Energy level indicators */}
-        <mesh position={[-3.5, reactantEnergy / 40 - 1, 0.1]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
+        <mesh position={[energyIndicators.reactant.x, energyIndicators.reactant.y, 0.1]}>
+          <sphereGeometry args={[0.08, 16, 16]} />
           <meshBasicMaterial color="#ff6b35" />
         </mesh>
-        <mesh position={[0, transitionStateEnergy / 40 - 1, 0.1]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
+        <mesh position={[energyIndicators.transition.x, energyIndicators.transition.y, 0.1]}>
+          <sphereGeometry args={[0.08, 16, 16]} />
           <meshBasicMaterial color="#ffcc00" />
         </mesh>
-        <mesh position={[3.5, productEnergy / 40 - 1, 0.1]}>
-          <sphereGeometry args={[0.08, 8, 8]} />
-          <meshBasicMaterial color="#06d6a0" />
-        </mesh>
-
-        {/* Labels */}
-        <mesh position={[-3.5, reactantEnergy / 40 - 0.6, 0]}>
-          <sphereGeometry args={[0.05, 8, 8]} />
-          <meshBasicMaterial color="#ff6b35" />
-        </mesh>
-        <mesh position={[0, transitionStateEnergy / 40 + 0.4, 0]}>
-          <sphereGeometry args={[0.05, 8, 8]} />
-          <meshBasicMaterial color="#ffcc00" />
-        </mesh>
-        <mesh position={[3.5, productEnergy / 40 - 0.6, 0]}>
-          <sphereGeometry args={[0.05, 8, 8]} />
+        <mesh position={[energyIndicators.product.x, energyIndicators.product.y, 0.1]}>
+          <sphereGeometry args={[0.08, 16, 16]} />
           <meshBasicMaterial color="#06d6a0" />
         </mesh>
 
         {/* Progress indicator on curve */}
-        {isAnimating && (
-          <mesh position={[(progress - 0.5) * 8, energyCurve[Math.floor(progress * 50)]?.[1] || 0, 0.2]}>
+        {isAnimating && progress > 0 && (
+          <mesh
+            position={[
+              (progress - 0.5) * 8,
+              energyCurvePoints[Math.floor(progress * 50)]?.[1] || 0,
+              0.2
+            ]}
+          >
             <sphereGeometry args={[0.12, 16, 16]} />
             <meshStandardMaterial
               color="#ec4899"
@@ -170,7 +192,7 @@ export function ThermochemistrySceneComponent({
         {/* Reactants */}
         {progress < 0.5 && (
           <>
-            <mesh position={[-0.5, 0, 0]} scale={[moleculeScale, moleculeScale, moleculeScale]}>
+            <mesh position={[-0.5, 0, 0]} scale={[getMoleculeScale(progress), getMoleculeScale(progress), getMoleculeScale(progress)]}>
               <sphereGeometry args={[0.3, 32, 32]} />
               <meshStandardMaterial
                 color="#ff6b35"
@@ -178,7 +200,7 @@ export function ThermochemistrySceneComponent({
                 emissiveIntensity={0.3}
               />
             </mesh>
-            <mesh position={[0.5, 0, 0]} scale={[moleculeScale, moleculeScale, moleculeScale]}>
+            <mesh position={[0.5, 0, 0]} scale={[getMoleculeScale(progress), getMoleculeScale(progress), getMoleculeScale(progress)]}>
               <sphereGeometry args={[0.25, 32, 32]} />
               <meshStandardMaterial
                 color="#4f8fff"
@@ -186,39 +208,17 @@ export function ThermochemistrySceneComponent({
                 emissiveIntensity={0.3}
               />
             </mesh>
-            {/* Bond */}
-            <mesh position={[0, 0, 0]}>
-              <cylinderGeometry args={[0.08, 0.08, 1, 8]} />
+            {/* Bond using cylinder */}
+            <mesh position={[0, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.08, 0.08, 1, 16]} />
               <meshStandardMaterial color="#b8860b" />
-            </mesh>
-          </>
-        )}
-
-        {/* Transition state (bonds breaking/forming) */}
-        {progress >= 0.3 && progress < 0.7 && (
-          <>
-            <mesh position={[-0.5 - (progress - 0.3), 0, 0]} scale={[moleculeScale, moleculeScale, moleculeScale]}>
-              <sphereGeometry args={[0.3, 32, 32]} />
-              <meshStandardMaterial
-                color="#ff6b35"
-                emissive="#ff6b35"
-                emissiveIntensity={0.3}
-              />
-            </mesh>
-            <mesh position={[0.5 + (progress - 0.3), 0, 0]} scale={[moleculeScale, moleculeScale, moleculeScale]}>
-              <sphereGeometry args={[0.25, 32, 32]} />
-              <meshStandardMaterial
-                color="#4f8fff"
-                emissive="#4f8fff"
-                emissiveIntensity={0.3}
-              />
             </mesh>
           </>
         )}
 
         {/* Products */}
         {progress >= 0.5 && (
-          <mesh position={[0, 0, 0]} scale={[2 - moleculeScale, 2 - moleculeScale, 2 - moleculeScale]}>
+          <mesh position={[0, 0, 0]} scale={[2 - getMoleculeScale(progress), 2 - getMoleculeScale(progress), 2 - getMoleculeScale(progress)]}>
             <sphereGeometry args={[0.35, 32, 32]} />
             <meshStandardMaterial
               color="#06d6a0"
@@ -229,7 +229,7 @@ export function ThermochemistrySceneComponent({
         )}
       </group>
 
-      {/* Heat indicator */}
+      {/* Heat indicator for exothermic */}
       {reactionType === "exothermic" && progress > 0.7 && (
         <mesh position={[2, 1.5, 0]}>
           <sphereGeometry args={[0.2 + progress * 0.3, 16, 16]} />
@@ -238,11 +238,12 @@ export function ThermochemistrySceneComponent({
             emissive="#ff6b35"
             emissiveIntensity={0.8}
             transparent
-            opacity={1 - progress}
+            opacity={1 - progress * 0.3}
           />
         </mesh>
       )}
 
+      {/* Cold indicator for endothermic */}
       {reactionType === "endothermic" && progress > 0.7 && (
         <mesh position={[2, 1.5, 0]}>
           <sphereGeometry args={[0.2, 16, 16]} />
@@ -251,14 +252,18 @@ export function ThermochemistrySceneComponent({
             emissive="#4f8fff"
             emissiveIntensity={0.5}
             transparent
-            opacity={progress}
+            opacity={progress * 0.8}
           />
         </mesh>
       )}
 
       {/* Temperature change indicator */}
       <mesh position={[-2.5, 1.5, 0]}>
-        <boxGeometry args={[0.1, 0.5 + (reactionType === "exothermic" ? 1 : -1) * progress * 0.5, 0.1]} />
+        <boxGeometry args={[
+          0.1,
+          0.5 + (reactionType === "exothermic" ? 1 : -1) * progress * 0.5,
+          0.1
+        ]} />
         <meshStandardMaterial
           color={reactionType === "exothermic" ? "#ff6b35" : "#4f8fff"}
           emissive={reactionType === "exothermic" ? "#ff6b35" : "#4f8fff"}

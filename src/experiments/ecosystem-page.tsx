@@ -29,6 +29,10 @@ export default function EcosystemPage() {
     secondaryConsumers: 5,
     tertiaryConsumers: 2,
     energyFlow: 100,
+    producerCount: 20,
+    primaryCount: 10,
+    secondaryCount: 5,
+    tertiaryCount: 2,
   });
 
   const handlePlayPause = useCallback(() => {
@@ -62,7 +66,9 @@ export default function EcosystemPage() {
             max={2}
             step={0.1}
             onChange={setProducerPop}
-              />
+            color="#22c55e"
+            decimals={1}
+          />
           <ControlSlider
             label="Primary Consumers"
             value={primaryPop}
@@ -70,7 +76,9 @@ export default function EcosystemPage() {
             max={2}
             step={0.1}
             onChange={setPrimaryPop}
-              />
+            color="#3b82f6"
+            decimals={1}
+          />
           <ControlSlider
             label="Secondary Consumers"
             value={secondaryPop}
@@ -78,7 +86,9 @@ export default function EcosystemPage() {
             max={2}
             step={0.1}
             onChange={setSecondaryPop}
-              />
+            color="#f59e0b"
+            decimals={1}
+          />
           <ControlSlider
             label="Speed"
             value={speed}
@@ -86,8 +96,18 @@ export default function EcosystemPage() {
             max={3}
             step={0.1}
             onChange={setSpeed}
-              />
+            color="#14b8a6"
+            decimals={1}
+          />
         </ControlGroup>
+
+        <div className="bg-teal-50/50 rounded-lg p-3 border border-teal-200/50">
+          <div className="text-xs text-gray-600 mb-2 font-medium">Ecosystem Info</div>
+          <div className="text-xs text-gray-500">
+            Energy flows from producers → consumers.<br />
+            Only ~10% of energy transfers between trophic levels.
+          </div>
+        </div>
 
         <button
           onClick={() => router.push('/experiments/ecosystem/details')}
@@ -104,10 +124,10 @@ export default function EcosystemPage() {
     () => (
       <DataGrid
         data={{
-          primary: { value: ecosystemData.primaryConsumers, unit: "consumers", color: "#14b8a6", decimals: 0 },
-          secondary: { value: ecosystemData.secondaryConsumers, unit: "consumers", color: "#22c55e", decimals: 0 },
-          tertiary: { value: ecosystemData.tertiaryConsumers, unit: "consumers", color: "#eab308", decimals: 0 },
-          energyFlow: { value: ecosystemData.energyFlow, unit: "%", color: "#f97316", decimals: 0 },
+          producers: { value: ecosystemData.producerCount, unit: "plants", color: "#22c55e", decimals: 0 },
+          primary: { value: ecosystemData.primaryCount, unit: "herbivores", color: "#3b82f6", decimals: 0 },
+          secondary: { value: ecosystemData.secondaryCount, unit: "carnivores", color: "#f59e0b", decimals: 0 },
+          tertiary: { value: ecosystemData.tertiaryCount, unit: "apex", color: "#ef4444", decimals: 0 },
         }}
         columns={2}
       />
@@ -128,7 +148,7 @@ export default function EcosystemPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="Ecosystem Food Web"
-        description="Explore food webs and energy flow through trophic levels"
+        description="Explore food webs, energy flow, and Lotka-Volterra population dynamics"
         cameraPosition={[0, 5, 15]}
         backgroundColor="#050510"
         controls={null}

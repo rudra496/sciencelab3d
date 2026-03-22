@@ -39,6 +39,12 @@ export default function PhotosynthesisPage() {
     setLightIntensity(1);
     setCo2Level(1);
     setWaterLevel(1);
+    setPhotosynthesisData({
+      lightReactionRate: 1,
+      calvinCycleRate: 0.8,
+      glucoseProduced: 0,
+      oxygenReleased: 0,
+    });
   }, []);
 
   const handleSpeedChange = useCallback((speed: number) => {
@@ -94,10 +100,10 @@ export default function PhotosynthesisPage() {
     () => (
       <DataGrid
         data={{
-          lightReaction: { value: photosynthesisData.lightReactionRate * 100, unit: "%", color: "#fbbf24", decimals: 0 },
-          calvinCycle: { value: photosynthesisData.calvinCycleRate * 100, unit: "%", color: "#22c55e", decimals: 0 },
-          glucose: { value: photosynthesisData.glucoseProduced, unit: "units", color: "#4ade80", decimals: 0 },
-          oxygen: { value: photosynthesisData.oxygenReleased, unit: "units", color: "#60a5fa", decimals: 0 },
+          lightReaction: { value: photosynthesisData.lightReactionRate * 100, unit: '%', color: '#fbbf24', decimals: 0 },
+          calvinCycle: { value: photosynthesisData.calvinCycleRate * 100, unit: '%', color: '#22c55e', decimals: 0 },
+          glucose: { value: photosynthesisData.glucoseProduced, unit: 'units', color: '#a855f7', decimals: 0 },
+          oxygen: { value: photosynthesisData.oxygenReleased, unit: 'units', color: '#ef4444', decimals: 0 },
         }}
         columns={2}
       />

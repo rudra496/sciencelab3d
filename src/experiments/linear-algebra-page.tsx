@@ -91,6 +91,7 @@ export default function LinearAlgebraPage() {
           magnitude: { value: data.vectorMagnitude, unit: "||v||", color: "#fbbf24", decimals: 2 },
           dotProduct: { value: data.dotProduct, unit: "v·w", color: "#6366f1", decimals: 2 },
           angle: { value: data.angle, unit: "°", color: "#818cf8", decimals: 1 },
+          determinant: { value: data.determinant ?? 1, unit: "det", color: "#22c55e", decimals: 2 },
         }}
         columns={1}
       />

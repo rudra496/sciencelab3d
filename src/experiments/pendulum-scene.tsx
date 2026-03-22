@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useCallback } from "react";
+import { useRef, useMemo, useEffect, useCallback, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
@@ -87,6 +87,136 @@ function rk4Step(
 }
 
 // ============================================
+// 3D ENERGY BARS COMPONENT
+// ============================================
+
+interface EnergyBars3DProps {
+  kineticEnergy: number;
+  potentialEnergy: number;
+  totalEnergy: number;
+  position?: [number, number, number];
+}
+
+function EnergyBars3D({ kineticEnergy, potentialEnergy, totalEnergy, position = [0, -5, 0] }: EnergyBars3DProps) {
+  const maxEnergy = Math.max(totalEnergy * 1.2, 0.1);
+  const barWidth = 0.4;
+  const barSpacing = 0.6;
+  const maxHeight = 4;
+  const baseY = position[1];
+
+  // Calculate bar heights
+  const keHeight = (kineticEnergy / maxEnergy) * maxHeight;
+  const peHeight = (potentialEnergy / maxEnergy) * maxHeight;
+  const teHeight = (totalEnergy / maxEnergy) * maxHeight;
+
+  // Group position offset
+  const groupX = position[0];
+  const groupZ = position[2];
+
+  return (
+    <group position={[groupX, baseY, groupZ]}>
+      {/* Base plate */}
+      <mesh position={[barSpacing, -0.1, 0]} receiveShadow>
+        <boxGeometry args={[barWidth * 3 + 0.4, 0.15, 0.8]} />
+        <meshStandardMaterial color="#1a1a2e" metalness={0.7} roughness={0.3} />
+      </mesh>
+
+      {/* Kinetic Energy Bar */}
+      <group position={[0, 0, 0]}>
+        <mesh position={[0, keHeight / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[barWidth, Math.max(keHeight, 0.05), barWidth]} />
+          <meshStandardMaterial color="#22c55e" metalness={0.6} roughness={0.3} emissive="#22c55e" emissiveIntensity={0.3} />
+        </mesh>
+        {/* Label */}
+        <Text
+          position={[0, keHeight + 0.4, 0]}
+          fontSize={0.25}
+          color="#22c55e"
+          anchorX="center"
+          anchorY="middle"
+        >
+          KE
+        </Text>
+        <Text
+          position={[0, keHeight + 0.7, 0]}
+          fontSize={0.18}
+          color="#86efac"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {kineticEnergy.toFixed(1)} J
+        </Text>
+      </group>
+
+      {/* Potential Energy Bar */}
+      <group position={[barSpacing, 0, 0]}>
+        <mesh position={[0, peHeight / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[barWidth, Math.max(peHeight, 0.05), barWidth]} />
+          <meshStandardMaterial color="#f59e0b" metalness={0.6} roughness={0.3} emissive="#f59e0b" emissiveIntensity={0.3} />
+        </mesh>
+        {/* Label */}
+        <Text
+          position={[0, peHeight + 0.4, 0]}
+          fontSize={0.25}
+          color="#f59e0b"
+          anchorX="center"
+          anchorY="middle"
+        >
+          PE
+        </Text>
+        <Text
+          position={[0, peHeight + 0.7, 0]}
+          fontSize={0.18}
+          color="#fcd34d"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {potentialEnergy.toFixed(1)} J
+        </Text>
+      </group>
+
+      {/* Total Energy Bar */}
+      <group position={[barSpacing * 2, 0, 0]}>
+        <mesh position={[0, teHeight / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[barWidth, Math.max(teHeight, 0.05), barWidth]} />
+          <meshStandardMaterial color="#a855f7" metalness={0.6} roughness={0.3} emissive="#a855f7" emissiveIntensity={0.4} />
+        </mesh>
+        {/* Label */}
+        <Text
+          position={[0, teHeight + 0.4, 0]}
+          fontSize={0.25}
+          color="#a855f7"
+          anchorX="center"
+          anchorY="middle"
+        >
+          Total
+        </Text>
+        <Text
+          position={[0, teHeight + 0.7, 0]}
+          fontSize={0.18}
+          color="#d8b4fe"
+          anchorX="center"
+          anchorY="middle"
+        >
+          {totalEnergy.toFixed(1)} J
+        </Text>
+      </group>
+
+      {/* Title */}
+      <Text
+        position={[barSpacing, -0.5, 0.5]}
+        fontSize={0.22}
+        color="#94a3b8"
+        anchorX="center"
+        anchorY="middle"
+      >
+        Energy (J)
+      </Text>
+    </group>
+  );
+}
+
+// ============================================
 // MAIN SCENE COMPONENT
 // ============================================
 
@@ -105,9 +235,12 @@ export function PendulumSceneComponent({
   simulationSpeed = 1,
   resetTrigger,
 }: PendulumSceneProps) {
+  // Local state for 3D energy bars (updated every 8 frames)
+  const [energyData, setEnergyData] = useState({ ke: 0, pe: 0, total: 0 });
+
   // Refs
   const bobRef = useRef<THREE.Group>(null);
-  const stringRef = useRef<THREE.Mesh>(null);
+  const stringRef = useRef<THREE.Group>(null);
   const trailRef = useRef<THREE.Points>(null);
   const velocityArrowRef = useRef<THREE.Group>(null);
   const gravityArrowRef = useRef<THREE.Group>(null);
@@ -115,7 +248,7 @@ export function PendulumSceneComponent({
   const netArrowRef = useRef<THREE.Group>(null);
   const angleArcRef = useRef<any>(null);
 
-  // Physics state (refs for per-frame)
+  // Physics state (refs for per-frame - no React state updates)
   const stateRef = useRef({
     theta: initialAngle,
     omega: 0,
@@ -125,24 +258,32 @@ export function PendulumSceneComponent({
     lastCrossTime: 0,
     measuredPeriod: 0,
   });
-  const dataTimerRef = useRef(0);
+
+  // Frame counter for throttling React state updates
+  const frameCountRef = useRef(0);
+  const lastEnergyDataRef = useRef({ ke: 0, pe: 0, total: 0 });
 
   // Trail
-  const MAX_TRAIL = 1200;
+  const MAX_TRAIL = 1500;
   const trailBuf = useMemo(() => ({
     positions: new Float32Array(MAX_TRAIL * 3),
     colors: new Float32Array(MAX_TRAIL * 3),
+    ages: new Float32Array(MAX_TRAIL),
     idx: 0,
   }), []);
   const trailGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(trailBuf.positions, 3));
     g.setAttribute("color", new THREE.BufferAttribute(trailBuf.colors, 3));
+    g.setAttribute("age", new THREE.BufferAttribute(trailBuf.ages, 1));
     return g;
   }, []);
 
   // Bob radius scales with mass (visual hint)
   const bobRadius = 0.5 + mass * 0.08;
+
+  // Calculate initial total energy for energy bars max reference
+  const initialTotalEnergy = mass * gravity * length * (1 - Math.cos(initialAngle));
 
   // Reset
   useEffect(() => {
@@ -156,12 +297,14 @@ export function PendulumSceneComponent({
         lastCrossTime: 0,
         measuredPeriod: 0,
       };
-      dataTimerRef.current = 0;
+      frameCountRef.current = 0;
       trailBuf.idx = 0;
       trailBuf.positions.fill(0);
       trailBuf.colors.fill(0);
+      trailBuf.ages.fill(0);
+      setEnergyData({ ke: 0, pe: mass * gravity * length * (1 - Math.cos(initialAngle)), total: mass * gravity * length * (1 - Math.cos(initialAngle)) });
     }
-  }, [resetTrigger, initialAngle, trailBuf]);
+  }, [resetTrigger, initialAngle, mass, gravity, length, trailBuf]);
 
   // Cleanup
   useEffect(() => {
@@ -173,6 +316,7 @@ export function PendulumSceneComponent({
     const rawDt = Math.min(delta, 0.02);
     const dt = rawDt * simulationSpeed;
     const s = stateRef.current;
+    frameCountRef.current++;
 
     if (isPlaying && dt > 0) {
       // Sub-step for stability at high speed
@@ -208,7 +352,7 @@ export function PendulumSceneComponent({
       bobRef.current.position.set(bx, by, 0);
     }
 
-    // Update string (thin cylinder from pivot to bob)
+    // Update string (realistic twisted rope)
     if (stringRef.current) {
       const midX = bx * 0.5;
       const midY = by * 0.5;
@@ -218,22 +362,43 @@ export function PendulumSceneComponent({
       stringRef.current.rotation.z = Math.atan2(bx, -by);
     }
 
-    // Trail
+    // Enhanced trail with age-based fading
     if (showTrail && isPlaying && trailRef.current) {
       const idx = trailBuf.idx % MAX_TRAIL;
       trailBuf.positions[idx * 3] = bx;
       trailBuf.positions[idx * 3 + 1] = by;
       trailBuf.positions[idx * 3 + 2] = 0;
+      trailBuf.ages[idx] = 1.0; // Full opacity at start
+
       const speed = Math.abs(omega);
       const t = Math.min(speed / 3, 1);
-      trailBuf.colors[idx * 3] = 0.4 + t * 0.6;
-      trailBuf.colors[idx * 3 + 1] = 0.3 + t * 0.4;
-      trailBuf.colors[idx * 3 + 2] = 1.0 - t * 0.2;
+
+      // Color gradient based on velocity (blue = slow, green = medium, red = fast)
+      if (t < 0.5) {
+        trailBuf.colors[idx * 3] = 0.2 + t * 0.4;     // R
+        trailBuf.colors[idx * 3 + 1] = 0.5 + t * 0.4; // G
+        trailBuf.colors[idx * 3 + 2] = 1.0 - t * 0.3; // B
+      } else {
+        trailBuf.colors[idx * 3] = 0.4 + (t - 0.5) * 0.6;     // R
+        trailBuf.colors[idx * 3 + 1] = 0.7 - (t - 0.5) * 0.4; // G
+        trailBuf.colors[idx * 3 + 2] = 0.85 - (t - 0.5) * 0.5; // B
+      }
       trailBuf.idx++;
+
+      // Age the trail points
+      for (let i = 0; i < MAX_TRAIL; i++) {
+        if (trailBuf.ages[i] > 0) {
+          trailBuf.ages[i] -= rawDt * 0.8; // Fade over ~1.25 seconds
+          if (trailBuf.ages[i] < 0) trailBuf.ages[i] = 0;
+        }
+      }
+
       const pos = trailRef.current.geometry.attributes.position as THREE.BufferAttribute;
       const col = trailRef.current.geometry.attributes.color as THREE.BufferAttribute;
+      const age = trailRef.current.geometry.attributes.age as THREE.BufferAttribute;
       pos.needsUpdate = true;
       col.needsUpdate = true;
+      age.needsUpdate = true;
       trailRef.current.geometry.setDrawRange(0, Math.min(trailBuf.idx, MAX_TRAIL));
     }
 
@@ -255,7 +420,7 @@ export function PendulumSceneComponent({
       // Gravity (always down)
       if (gravityArrowRef.current) {
         gravityArrowRef.current.position.set(bx, by, 0);
-        gravityArrowRef.current.rotation.z = 0; // pointing down
+        gravityArrowRef.current.rotation.z = 0;
         gravityArrowRef.current.scale.set(1, mass * gravity * 0.05, 1);
       }
 
@@ -303,12 +468,19 @@ export function PendulumSceneComponent({
       pos.needsUpdate = true;
     }
 
-    // Throttled data callback (~15fps)
-    dataTimerRef.current += rawDt;
-    if (dataTimerRef.current >= 0.066) {
-      dataTimerRef.current = 0;
-      const ke = pendulumKE(mass, length, omega);
-      const pe = pendulumPE(mass, gravity, length, theta);
+    // Calculate energies
+    const ke = pendulumKE(mass, length, omega);
+    const pe = pendulumPE(mass, gravity, length, theta);
+    const total = ke + pe;
+
+    // Store latest energy data for 3D bars
+    lastEnergyDataRef.current = { ke, pe, total };
+
+    // Update React state every 8 frames (at 60fps = ~7.5 updates per second)
+    if (frameCountRef.current % 8 === 0) {
+      setEnergyData({ ke, pe, total });
+
+      // Throttled data callback
       onDataChange?.({
         period: correctedPeriod(length, gravity, Math.abs(initialAngle)),
         periodMeasured: s.measuredPeriod,
@@ -316,7 +488,7 @@ export function PendulumSceneComponent({
         angularFrequency: Math.sqrt(gravity / length),
         kineticEnergy: ke,
         potentialEnergy: pe,
-        totalEnergy: ke + pe,
+        totalEnergy: total,
         angle: theta,
         angleDeg: (theta * 180) / Math.PI,
         angularVelocity: omega,
@@ -329,12 +501,6 @@ export function PendulumSceneComponent({
     }
   });
 
-  // Arrow component for force vectors
-  const arrowColor = useCallback((type: "velocity" | "gravity" | "tension" | "net") => {
-    const colors = { velocity: "#22c55e", gravity: "#3b82f6", tension: "#ef4444", net: "#eab308" };
-    return colors[type];
-  }, []);
-
   return (
     <group>
       {/* ====== LIGHTING ====== */}
@@ -343,7 +509,7 @@ export function PendulumSceneComponent({
       <directionalLight position={[-8, 12, -8]} intensity={0.3} />
       <pointLight position={[0, 5, 8]} intensity={0.4} color="#8b5cf6" />
 
-      {/* ====== SUPPORT FRAME ====== */}
+      {/* ====== SUPPORT FRAME WITH PIVOT ====== */}
       <SupportFrame width={length * 1.6} height={length * 1.15} />
 
       {/* ====== PROTRACTOR ON GROUND ====== */}
@@ -370,20 +536,45 @@ export function PendulumSceneComponent({
         />
       )}
 
-      {/* ====== STRING ====== */}
-      <mesh ref={stringRef} castShadow>
-        <cylinderGeometry args={[0.04, 0.04, 1, 6]} />
-        <meshStandardMaterial color="#888888" metalness={0.7} roughness={0.3} />
-      </mesh>
+      {/* ====== REALISTIC ROPE/STRING ====== */}
+      <group ref={stringRef} castShadow>
+        {/* Main rope - twisted texture */}
+        <mesh>
+          <cylinderGeometry args={[0.05, 0.05, 1, 12]} />
+          <meshStandardMaterial
+            color="#8B7355"
+            metalness={0.1}
+            roughness={0.85}
+          />
+        </mesh>
+        {/* Inner core for detail */}
+        <mesh>
+          <cylinderGeometry args={[0.03, 0.03, 1, 8]} />
+          <meshStandardMaterial
+            color="#6B5344"
+            metalness={0.05}
+            roughness={0.9}
+          />
+        </mesh>
+        {/* Twisted strands visual effect */}
+        <mesh rotation={[0, 0, Math.PI / 6]}>
+          <cylinderGeometry args={[0.015, 0.015, 1, 6]} />
+          <meshStandardMaterial color="#A08060" metalness={0.15} roughness={0.75} />
+        </mesh>
+        <mesh rotation={[0, 0, -Math.PI / 6]}>
+          <cylinderGeometry args={[0.015, 0.015, 1, 6]} />
+          <meshStandardMaterial color="#A08060" metalness={0.15} roughness={0.75} />
+        </mesh>
+      </group>
 
-      {/* ====== TRAIL ====== */}
+      {/* ====== MOTION TRAIL ====== */}
       {showTrail && (
         <points ref={trailRef} geometry={trailGeo}>
           <pointsMaterial
-            size={0.12}
+            size={0.1}
             vertexColors
             transparent
-            opacity={0.7}
+            opacity={0.85}
             sizeAttenuation
             blending={THREE.AdditiveBlending}
             depthWrite={false}
@@ -394,13 +585,13 @@ export function PendulumSceneComponent({
       {/* ====== BOB ASSEMBLY ====== */}
       <group ref={bobRef}>
         {/* Hook ring at top */}
-        <mesh position={[0, bobRadius + 0.15, 0]}>
+        <mesh position={[0, bobRadius + 0.15, 0]} castShadow>
           <torusGeometry args={[0.15, 0.04, 8, 16]} />
           <meshStandardMaterial color="#555555" metalness={0.9} roughness={0.1} />
         </mesh>
 
-        {/* Main bob */}
-        <mesh castShadow>
+        {/* Main bob - metallic with shadow */}
+        <mesh castShadow receiveShadow>
           <sphereGeometry args={[bobRadius, 48, 48]} />
           <meshStandardMaterial
             color="#a855f7"
@@ -422,14 +613,28 @@ export function PendulumSceneComponent({
           />
         </mesh>
 
-        {/* Glow */}
-        <mesh>
-          <sphereGeometry args={[bobRadius * 1.35, 32, 32]} />
-          <meshBasicMaterial
-            color="#a855f7"
+        {/* Metallic shine highlight */}
+        <mesh position={[bobRadius * 0.4, bobRadius * 0.4, 0]}>
+          <sphereGeometry args={[bobRadius * 0.2, 16, 16]} />
+          <meshStandardMaterial
+            color="#ffffff"
+            metalness={1.0}
+            roughness={0.0}
+            emissive="#ffffff"
+            emissiveIntensity={0.3}
             transparent
-            opacity={0.1}
-            blending={THREE.AdditiveBlending}
+            opacity={0.6}
+          />
+        </mesh>
+
+        {/* Shadow blob on ground (projected shadow) */}
+        <mesh position={[0, -length - 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[bobRadius * 1.5, 32]} />
+          <meshBasicMaterial
+            color="#000000"
+            transparent
+            opacity={0.3}
+            blending={THREE.MultiplyBlending}
             depthWrite={false}
           />
         </mesh>
@@ -459,6 +664,14 @@ export function PendulumSceneComponent({
           </group>
         </>
       )}
+
+      {/* ====== 3D ENERGY BARS ====== */}
+      <EnergyBars3D
+        kineticEnergy={energyData.ke}
+        potentialEnergy={energyData.pe}
+        totalEnergy={energyData.total}
+        position={[length * 0.8, -length * 0.6, 0]}
+      />
     </group>
   );
 }
@@ -492,12 +705,13 @@ function ArrowMesh({ color, label }: { color: string; label: string }) {
   );
 }
 
-/** Metal support frame */
+/** Metal support frame with detailed pivot mechanism */
 function SupportFrame({ width, height }: { width: number; height: number }) {
   const beamH = 0.5;
   const pillarW = 0.4;
   const beamColor = "#2a2a3e";
   const metalMat = { color: beamColor, metalness: 0.8, roughness: 0.25 };
+  const brassMat = { color: "#b8860b", metalness: 0.95, roughness: 0.15 };
 
   return (
     <group>
@@ -535,11 +749,40 @@ function SupportFrame({ width, height }: { width: number; height: number }) {
         <meshStandardMaterial {...metalMat} />
       </mesh>
 
-      {/* Pivot bearing */}
-      <mesh position={[0, -beamH / 2 - 0.15, 0]}>
-        <cylinderGeometry args={[0.25, 0.25, 0.3, 16]} />
-        <meshStandardMaterial color="#555" metalness={0.9} roughness={0.1} />
-      </mesh>
+      {/* ====== PIVOT MECHANISM ====== */}
+      <group position={[0, -beamH / 2 - 0.15, 0]}>
+        {/* Mounting plate */}
+        <mesh position={[0, 0.1, 0]}>
+          <cylinderGeometry args={[0.4, 0.4, 0.2, 16]} />
+          <meshStandardMaterial color="#333333" metalness={0.85} roughness={0.2} />
+        </mesh>
+
+        {/* Main bearing housing - brass */}
+        <mesh>
+          <cylinderGeometry args={[0.3, 0.3, 0.35, 16]} />
+          <meshStandardMaterial {...brassMat} />
+        </mesh>
+
+        {/* Inner bearing - steel */}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <torusGeometry args={[0.12, 0.04, 8, 16]} />
+          <meshStandardMaterial color="#888888" metalness={0.9} roughness={0.1} />
+        </mesh>
+
+        {/* Pivot point ball */}
+        <mesh position={[0, -0.22, 0]}>
+          <sphereGeometry args={[0.1, 16, 16]} />
+          <meshStandardMaterial color="#c0c0c0" metalness={0.95} roughness={0.05} emissive="#c0c0c0" emissiveIntensity={0.2} />
+        </mesh>
+
+        {/* Mounting bolts */}
+        {[0, Math.PI / 2, Math.PI, Math.PI * 1.5].map((angle, i) => (
+          <mesh key={i} position={[Math.cos(angle) * 0.28, 0.1, Math.sin(angle) * 0.28]}>
+            <cylinderGeometry args={[0.03, 0.03, 0.15, 6]} />
+            <meshStandardMaterial color="#555555" metalness={0.9} roughness={0.15} />
+          </mesh>
+        ))}
+      </group>
 
       {/* Base plates */}
       {[-1, 1].map((side) => (

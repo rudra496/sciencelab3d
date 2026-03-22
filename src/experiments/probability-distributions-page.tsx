@@ -13,7 +13,7 @@ import {
   DataPanel,
 } from "@/components/experiment-ui";
 
-const DISTRIBUTIONS = ["normal", "binomial", "poisson"] as const;
+const DISTRIBUTIONS = ["normal", "binomial", "poisson", "uniform"] as const;
 
 export default function ProbabilityDistributionsPage() {
   const router = useRouter();
@@ -42,7 +42,7 @@ export default function ProbabilityDistributionsPage() {
   const parameterControls = (
     <div className="space-y-4">
       <ControlGroup title="Distribution Type">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {DISTRIBUTIONS.map((dist) => (
             <button
               key={dist}
@@ -119,6 +119,7 @@ export default function ProbabilityDistributionsPage() {
           {distributionType === "normal" && "f(x) = (1/σ√2π) × e^(-½((x-μ)/σ)²)"}
           {distributionType === "binomial" && "P(X=k) = C(n,k) × p^k × (1-p)^(n-k)"}
           {distributionType === "poisson" && "P(X=k) = (λ^k × e^(-λ)) / k!"}
+          {distributionType === "uniform" && "f(x) = 1/(b-a) for a ≤ x ≤ b"}
         </div>
       </div>
     </>

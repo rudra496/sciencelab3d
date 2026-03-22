@@ -17,12 +17,10 @@ export default function CrystalLatticePage() {
   const [data, setData] = useState<CrystalLatticeData | null>(null);
   const [showDataPanel, setShowDataPanel] = useState(true);
 
-  // Simulation
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
 
-  // Physics
   const [latticeType, setLatticeType] = useState<"FCC" | "BCC" | "HCP" | "diamond">("FCC");
   const [showUnitCell, setShowUnitCell] = useState(true);
   const [showBonds, setShowBonds] = useState(true);
@@ -41,7 +39,6 @@ export default function CrystalLatticePage() {
     diamond: { name: "Diamond Cubic", examples: "C (diamond), Si, Ge" },
   };
 
-  // === PARAMETER CONTROLS ===
   const parameterControls = (
     <div className="space-y-4">
       <ControlGroup title="Crystal Structure">
@@ -91,15 +88,14 @@ export default function CrystalLatticePage() {
     </div>
   );
 
-  // === DATA PANEL CONTENT ===
   const dataPanelContent = data ? (
     <>
       <DataGrid
         data={{
-          atomsPerCell: { value: data.atomsPerCell, unit: "atoms", color: "#a855f7", decimals: 0 },
-          coordinationNumber: { value: data.coordinationNumber, unit: "neighbors", color: "#ec4899", decimals: 0 },
+          totalAtoms: { value: data.totalAtoms, unit: "atoms", color: "#a855f7", decimals: 0 },
+          atomsPerCell: { value: data.atomsPerCell, unit: "atoms/cell", color: "#ec4899", decimals: 0 },
+          coordinationNumber: { value: data.coordinationNumber, unit: "", color: "#8b5cf6", decimals: 0 },
           packingEfficiency: { value: data.packingEfficiency * 100, unit: "%", color: "#22c55e", decimals: 0 },
-          unitCells: { value: data.unitCells, unit: "cells", color: "#3b82f6", decimals: 0 },
         }}
         columns={2}
       />

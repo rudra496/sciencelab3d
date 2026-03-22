@@ -38,6 +38,7 @@ export default function ProteinSynthesisPage() {
     setSpeed(1);
     setStage(0);
     setShowCodons(true);
+    setProteinData({ stage: 'Transcription', codonsProcessed: 0, aminoAcidsFormed: 0 });
   }, []);
 
   const handleSpeedChange = useCallback((s: number) => {
@@ -61,7 +62,7 @@ export default function ProteinSynthesisPage() {
             onChange={setSpeed}
               />
           <div className="mt-3 space-y-2">
-            <label className="text-xs text-gray-400 block mb-2">Stage</label>
+            <label className="text-xs text-gray-400 block mb-2">Protein Synthesis Stage</label>
             {['Transcription', 'Translation', 'Complete'].map((s, i) => (
               <button
                 key={s}
@@ -107,10 +108,10 @@ export default function ProteinSynthesisPage() {
     () => (
       <DataGrid
         data={{
-          stage: { value: 0, unit: proteinData.stage, color: "#8b5cf6", decimals: 0 },
-          codons: { value: proteinData.codonsProcessed, unit: "codons", color: "#a78bfa", decimals: 0 },
-          aminoAcids: { value: proteinData.aminoAcidsFormed, unit: "AA", color: "#c4b5fd", decimals: 0 },
-          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? "Active" : "Paused", color: "#22c55e", decimals: 0 },
+          stage: { value: 0, unit: proteinData.stage, color: '#8b5cf6', decimals: 0 },
+          codons: { value: proteinData.codonsProcessed, unit: 'codons', color: '#a78bfa', decimals: 0 },
+          aminoAcids: { value: proteinData.aminoAcidsFormed, unit: 'AA', color: '#c4b5fd', decimals: 0 },
+          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
       />

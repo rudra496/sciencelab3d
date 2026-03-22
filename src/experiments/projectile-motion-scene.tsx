@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useMemo, useEffect, useState, useCallback } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Line, Html, Text } from "@react-three/drei";
+import { Line, Text } from "@react-three/drei";
 import * as THREE from "three";
 
 // ============================================
@@ -120,42 +120,42 @@ export function ProjectileMotionSceneComponent({
   isPlaying = true,
   simulationSpeed = 1,
 }: ProjectileSceneProps) {
+  // Refs for all physics state
   const projectileRef = useRef<THREE.Mesh>(null);
-  const trailRef = useRef<THREE.Points>(null);
   const velArrowRef = useRef<THREE.Group>(null);
-  const smokeRef = useRef<THREE.Group>(null);
   const launcherRef = useRef<THREE.Group>(null);
 
+  // Instanced mesh for ghost markers (performance optimization)
+  const ghostInstancedRef = useRef<THREE.InstancedMesh>(null);
+  const GHOST_COUNT = 30;
+
+  // Trail line points (smooth curve instead of dots)
+  const trailPointsRef = useRef<[number, number, number][]>([]);
+  const MAX_TRAIL_POINTS = 500;
+
+  // Simulation state - ALL in refs for performance
   const simRef = useRef({
     launched: false,
     state: { x: 0, y: 0, vx: 0, vy: 0 } as State2D,
     time: 0,
     maxHeight: 0,
     ghostTimer: 0,
-    ghostPositions: [] as [number, number, number][],
+    ghostCount: 0,
+    lastDataUpdate: 0,
   });
-  const dataTimer = useRef(0);
 
-  // Trail
-  const MAX_TRAIL = 2000;
-  const trailBuf = useMemo(() => ({
-    positions: new Float32Array(MAX_TRAIL * 3),
-    colors: new Float32Array(MAX_TRAIL * 3),
-    idx: 0,
-  }), []);
-  const trailGeo = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(trailBuf.positions, 3));
-    g.setAttribute("color", new THREE.BufferAttribute(trailBuf.colors, 3));
-    return g;
-  }, []);
+  // React state for target hit only
+  const [targetHit, setTargetHit] = useState(false);
+
+  // Computed values
+  const angleRad = (angle * Math.PI) / 180;
 
   // Predicted trajectory (no drag, analytical)
-  const angleRad = (angle * Math.PI) / 180;
   const predictedPoints = useMemo(() => {
+    if (!showPrediction) return [];
     const pts: [number, number, number][] = [];
     const totalTime = (2 * velocity * Math.sin(angleRad)) / gravity;
-    const steps = 120;
+    const steps = 100;
     for (let i = 0; i <= steps; i++) {
       const t = (i / steps) * totalTime;
       const x = velocity * Math.cos(angleRad) * t;
@@ -163,20 +163,31 @@ export function ProjectileMotionSceneComponent({
       pts.push([x, Math.max(y, 0) + 0.5, 0]);
     }
     return pts;
-  }, [velocity, angleRad, gravity]);
+  }, [velocity, angleRad, gravity, showPrediction]);
 
   const predictedRange = (velocity * velocity * Math.sin(2 * angleRad)) / gravity;
   const predictedMaxHeight = (velocity * velocity * Math.sin(angleRad) * Math.sin(angleRad)) / (2 * gravity);
   const predictedTOF = (2 * velocity * Math.sin(angleRad)) / gravity;
 
-  // Smoke particles
-  const smokeParticles = useRef<THREE.Mesh[]>([]);
-  const smokeData = useRef<{ pos: THREE.Vector3; vel: THREE.Vector3; life: number; maxLife: number }[]>([]);
+  // Launch angle indicator arc
+  const angleArcPoints = useMemo(() => {
+    const pts: [number, number, number][] = [];
+    const arcRadius = 3;
+    const arcLength = angleRad;
+    const steps = 20;
+    // Arc from 0 (horizontal) to angle
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * arcLength;
+      pts.push([
+        Math.cos(Math.PI / 2 - t) * arcRadius,
+        Math.sin(Math.PI / 2 - t) * arcRadius + 0.5,
+        0
+      ]);
+    }
+    return pts;
+  }, [angleRad]);
 
-  // Target hit
-  const [targetHit, setTargetHit] = useState(false);
-
-  // Reset
+  // Reset handler
   useEffect(() => {
     if (resetTrigger !== undefined && resetTrigger > 0) {
       const rad = (angle * Math.PI) / 180;
@@ -191,70 +202,40 @@ export function ProjectileMotionSceneComponent({
         time: 0,
         maxHeight: 0,
         ghostTimer: 0,
-        ghostPositions: [],
+        ghostCount: 0,
+        lastDataUpdate: 0,
       };
-      trailBuf.idx = 0;
-      trailBuf.positions.fill(0);
-      trailBuf.colors.fill(0);
+      trailPointsRef.current = [];
       setTargetHit(false);
-      smokeData.current = [];
-      // Create smoke burst at muzzle
-      for (let i = 0; i < 15; i++) {
-        smokeData.current.push({
-          pos: new THREE.Vector3(2.2 * Math.cos(-rad + Math.PI / 2), 2.2 * Math.sin(-rad + Math.PI / 2) + 0.5, (Math.random() - 0.5) * 0.5),
-          vel: new THREE.Vector3(
-            Math.cos(-rad + Math.PI / 2) * (1 + Math.random() * 2) + (Math.random() - 0.5),
-            Math.sin(-rad + Math.PI / 2) * (1 + Math.random() * 2) + Math.random() * 2,
-            (Math.random() - 0.5) * 2
-          ),
-          life: 0,
-          maxLife: 0.5 + Math.random() * 1.0,
-        });
-      }
       if (projectileRef.current) {
         projectileRef.current.position.set(0, 0.5, 0);
       }
-    }
-  }, [resetTrigger, angle, velocity, trailBuf]);
-
-  // Update launcher rotation
-  useFrame(() => {
-    if (launcherRef.current) {
-      // Rotate the barrel group around Z axis
-      const barrelGroup = launcherRef.current.children[2]; // Rotating platform
-      if (barrelGroup) {
-        barrelGroup.rotation.z = angleRad;
+      // Reset ghost instances
+      if (ghostInstancedRef.current) {
+        const dummy = new THREE.Object3D();
+        dummy.position.set(0, -1000, 0); // Hide off-screen
+        for (let i = 0; i < GHOST_COUNT; i++) {
+          dummy.updateMatrix();
+          ghostInstancedRef.current.setMatrixAt(i, dummy.matrix);
+        }
+        ghostInstancedRef.current.instanceMatrix.needsUpdate = true;
       }
     }
-  });
+  }, [resetTrigger, angle, velocity]);
 
-  // Main frame loop
+  // Combined useFrame for minimal overhead
   useFrame((_, delta) => {
     const rawDt = Math.min(delta, 0.02);
     const dt = rawDt * simulationSpeed;
     const sim = simRef.current;
 
-    // Update smoke particles
-    smokeData.current = smokeData.current.filter((p) => {
-      p.life += rawDt;
-      if (p.life >= p.maxLife) return false;
-      p.pos.addScaledVector(p.vel, rawDt);
-      p.vel.y += rawDt * 0.5; // float up slightly
-      return true;
-    });
-    // Update smoke refs
-    smokeParticles.current.forEach((mesh, i) => {
-      const p = smokeData.current[i];
-      if (p) {
-        mesh.position.copy(p.pos);
-        const t = p.life / p.maxLife;
-        mesh.scale.setScalar(1 + t * 3);
-        (mesh.material as THREE.MeshStandardMaterial).opacity = (1 - t) * 0.5;
-        mesh.visible = true;
-      } else {
-        mesh.visible = false;
+    // Update launcher rotation
+    if (launcherRef.current) {
+      const barrelGroup = launcherRef.current.children[2];
+      if (barrelGroup) {
+        barrelGroup.rotation.z = angleRad;
       }
-    });
+    }
 
     if (sim.launched && isPlaying && dt > 0) {
       sim.time += dt;
@@ -279,22 +260,66 @@ export function ProjectileMotionSceneComponent({
       const y = Math.max(0, sim.state.y);
       sim.maxHeight = Math.max(sim.maxHeight, y);
 
-      // Ghost markers every 0.5s
-      sim.ghostTimer += dt;
-      if (sim.ghostTimer >= 0.5) {
-        sim.ghostTimer -= 0.5;
-        sim.ghostPositions.push([x, y + 0.5, 0]);
-        if (sim.ghostPositions.length > 30) sim.ghostPositions.shift();
-      }
-
-      // Update projectile
+      // Update projectile position
       if (projectileRef.current) {
         projectileRef.current.position.set(x, y + 0.5, 0);
-        // Rotate to face velocity direction
         const speed = Math.sqrt(sim.state.vx * sim.state.vx + sim.state.vy * sim.state.vy);
         if (speed > 0.1) {
           projectileRef.current.rotation.z = -Math.atan2(sim.state.vy, sim.state.vx);
         }
+      }
+
+      // Update trail points
+      if (showTrail) {
+        trailPointsRef.current.push([x, y + 0.5, 0]);
+        if (trailPointsRef.current.length > MAX_TRAIL_POINTS) {
+          trailPointsRef.current.shift();
+        }
+      }
+
+      // Ghost markers every 0.5s (using instanced mesh)
+      if (showGhostMarkers) {
+        sim.ghostTimer += dt;
+        if (sim.ghostTimer >= 0.5) {
+          sim.ghostTimer -= 0.5;
+          if (sim.ghostCount < GHOST_COUNT) {
+            sim.ghostCount++;
+          }
+        }
+      }
+
+      // Update ghost instances
+      if (ghostInstancedRef.current && showGhostMarkers) {
+        const dummy = new THREE.Object3D();
+        // Calculate ghost positions based on time intervals
+        for (let i = 0; i < sim.ghostCount; i++) {
+          const ghostTime = (i + 1) * 0.5;
+          let gx, gy;
+          if (!airResistance) {
+            gx = velocity * Math.cos(angleRad) * ghostTime;
+            gy = Math.max(0, velocity * Math.sin(angleRad) * ghostTime - 0.5 * gravity * ghostTime * ghostTime);
+          } else {
+            // For air resistance, we can recalculate - this is fast enough
+            let gState = { x: 0, y: 0, vx: velocity * Math.cos(angleRad), vy: velocity * Math.sin(angleRad) };
+            const steps = Math.max(1, Math.ceil(ghostTime / 0.004));
+            const subDt = ghostTime / steps;
+            for (let s = 0; s < steps; s++) {
+              gState = rk4Projectile(gState, gravity, dragCoefficient, mass, subDt);
+            }
+            gx = gState.x;
+            gy = Math.max(0, gState.y);
+          }
+          dummy.position.set(gx, gy + 0.5, 0);
+          dummy.updateMatrix();
+          ghostInstancedRef.current.setMatrixAt(i, dummy.matrix);
+        }
+        // Hide unused instances
+        for (let i = sim.ghostCount; i < GHOST_COUNT; i++) {
+          dummy.position.set(0, -1000, 0);
+          dummy.updateMatrix();
+          ghostInstancedRef.current.setMatrixAt(i, dummy.matrix);
+        }
+        ghostInstancedRef.current.instanceMatrix.needsUpdate = true;
       }
 
       // Velocity arrow
@@ -308,25 +333,6 @@ export function ProjectileMotionSceneComponent({
         velArrowRef.current.visible = speed > 0.5;
       }
 
-      // Trail
-      if (showTrail && trailRef.current) {
-        const idx = trailBuf.idx % MAX_TRAIL;
-        trailBuf.positions[idx * 3] = x;
-        trailBuf.positions[idx * 3 + 1] = y + 0.5;
-        trailBuf.positions[idx * 3 + 2] = 0;
-        const speed = Math.sqrt(sim.state.vx * sim.state.vx + sim.state.vy * sim.state.vy);
-        const t = Math.min(speed / velocity, 1);
-        trailBuf.colors[idx * 3] = 0.2 + t * 0.8;
-        trailBuf.colors[idx * 3 + 1] = 0.6 - t * 0.4;
-        trailBuf.colors[idx * 3 + 2] = 1.0 - t * 0.7;
-        trailBuf.idx++;
-        const pos = trailRef.current.geometry.attributes.position as THREE.BufferAttribute;
-        const col = trailRef.current.geometry.attributes.color as THREE.BufferAttribute;
-        pos.needsUpdate = true;
-        col.needsUpdate = true;
-        trailRef.current.geometry.setDrawRange(0, Math.min(trailBuf.idx, MAX_TRAIL));
-      }
-
       // Target hit check
       if (!targetHit && Math.abs(x - targetDistance) < 2 && y < 2) {
         setTargetHit(true);
@@ -335,21 +341,12 @@ export function ProjectileMotionSceneComponent({
       // Landing
       if (sim.state.y <= 0 && sim.time > 0.1) {
         sim.launched = false;
-        // Landing dust
-        for (let i = 0; i < 20; i++) {
-          smokeData.current.push({
-            pos: new THREE.Vector3(x + (Math.random() - 0.5) * 0.5, 0.5, (Math.random() - 0.5) * 0.5),
-            vel: new THREE.Vector3((Math.random() - 0.5) * 4, Math.random() * 3, (Math.random() - 0.5) * 4),
-            life: 0,
-            maxLife: 0.8 + Math.random() * 1.5,
-          });
-        }
       }
 
-      // Data callback
-      dataTimer.current += rawDt;
-      if (dataTimer.current >= 0.066) {
-        dataTimer.current = 0;
+      // Data callback throttled to every 10 frames (~166ms at 60fps)
+      sim.lastDataUpdate += rawDt;
+      if (sim.lastDataUpdate >= 0.166) {
+        sim.lastDataUpdate = 0;
         const speed = Math.sqrt(sim.state.vx * sim.state.vx + sim.state.vy * sim.state.vy);
         const ke = 0.5 * mass * speed * speed;
         const pe = mass * gravity * y;
@@ -377,41 +374,28 @@ export function ProjectileMotionSceneComponent({
     }
   });
 
-  // Ghost marker component
-  const ghostMarkers = useMemo(() => {
-    if (!showGhostMarkers) return null;
-    return simRef.current.ghostPositions.map((pos, i) => (
-      <mesh key={`ghost-${i}`} position={pos}>
-        <sphereGeometry args={[0.2, 8, 8]} />
-        <meshBasicMaterial color="#ffffff" transparent opacity={0.4} />
-      </mesh>
-    ));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showGhostMarkers, simRef.current.ghostPositions.length]);
-
   return (
     <group>
       {/* ====== LIGHTING ====== */}
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.5} />
       <directionalLight position={[30, 40, 20]} intensity={1.0} castShadow
         shadow-mapSize={[2048, 2048]} shadow-camera-far={200}
         shadow-camera-left={-100} shadow-camera-right={100}
         shadow-camera-top={50} shadow-camera-bottom={-10} />
-      <directionalLight position={[-10, 15, -10]} intensity={0.3} />
       <hemisphereLight args={["#87ceeb", "#3d2b1f", 0.3]} />
 
-      {/* ====== SKY DOME ====== */}
-      <mesh position={[50, -5, 0]}>
-        <sphereGeometry args={[300, 32, 32]} />
-        <meshBasicMaterial color="#0a0a2e" side={THREE.BackSide} />
-      </mesh>
-
-      {/* ====== GROUND ====== */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[50, -0.01, 0]} receiveShadow>
-        <planeGeometry args={[300, 100]} />
+      {/* ====== GROUND WITH GRID ====== */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[60, -0.01, 0]} receiveShadow>
+        <planeGeometry args={[300, 150]} />
         <meshStandardMaterial color="#1a2a1a" roughness={0.95} />
       </mesh>
-      <gridHelper args={[300, 150, "#1a3a1a", "#0a1a0a"]} position={[50, 0.01, 0]} />
+      <gridHelper args={[300, 150, "#2a4a2a", "#1a3a1a"]} position={[60, 0.01, 0]} />
+
+      {/* ====== SKY DOME ====== */}
+      <mesh position={[60, -10, 0]}>
+        <sphereGeometry args={[400, 32, 32]} />
+        <meshBasicMaterial color="#0a0a2e" side={THREE.BackSide} />
+      </mesh>
 
       {/* ====== BACKGROUND HILLS ====== */}
       {[30, 60, 100, 150].map((dist, i) => (
@@ -485,7 +469,6 @@ export function ProjectileMotionSceneComponent({
             <cylinderGeometry args={[0.1, 0.12, 0.4, 16]} />
             <meshStandardMaterial color="#5a5a6a" metalness={0.9} roughness={0.1} />
           </mesh>
-          {/* Muzzle indicator */}
           <mesh position={[3.3, 0, 0]}>
             <sphereGeometry args={[0.12, 8, 8]} />
             <meshBasicMaterial color="#22c55e" />
@@ -502,6 +485,11 @@ export function ProjectileMotionSceneComponent({
           <meshBasicMaterial color="#22c55e" />
         </mesh>
       </group>
+
+      {/* ====== LAUNCH ANGLE INDICATOR ARC ====== */}
+      {showPrediction && angleArcPoints.length > 0 && (
+        <Line points={angleArcPoints} color="#f59e0b" lineWidth={2} opacity={0.7} />
+      )}
 
       {/* ====== PROJECTILE ====== */}
       <mesh ref={projectileRef} position={[0, 0.5, 0]} castShadow>
@@ -521,28 +509,27 @@ export function ProjectileMotionSceneComponent({
         <Line points={predictedPoints} color="#4ade80" lineWidth={2} dashed dashSize={0.5} gapSize={0.3} opacity={0.5} />
       )}
 
-      {/* ====== TRAIL ====== */}
-      {showTrail && (
-        <points ref={trailRef} geometry={trailGeo}>
-          <pointsMaterial size={0.1} vertexColors transparent opacity={0.8} sizeAttenuation depthWrite={false} />
-        </points>
+      {/* ====== TRAIL (smooth curve) ====== */}
+      {showTrail && trailPointsRef.current.length > 1 && (
+        <Line
+          points={trailPointsRef.current}
+          color="#60a5fa"
+          lineWidth={3}
+          opacity={0.8}
+        />
       )}
 
-      {/* ====== GHOST MARKERS ====== */}
-      {ghostMarkers}
+      {/* ====== GHOST MARKERS (instanced) ====== */}
+      {showGhostMarkers && (
+        <instancedMesh
+          ref={ghostInstancedRef}
+          args={[new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.4 }), GHOST_COUNT]}
+          position={[0, 0, 0]}
+        />
+      )}
 
       {/* ====== TARGET ====== */}
       <TargetAssembly position={[targetDistance, 0, 0]} isHit={targetHit} />
-
-      {/* ====== SMOKE PARTICLES ====== */}
-      <group ref={smokeRef}>
-        {Array.from({ length: 35 }).map((_, i) => (
-          <mesh key={i} ref={(el) => { if (el) smokeParticles.current[i] = el; }} visible={false}>
-            <sphereGeometry args={[0.15, 6, 6]} />
-            <meshBasicMaterial color="#aaaaaa" transparent opacity={0} depthWrite={false} />
-          </mesh>
-        ))}
-      </group>
     </group>
   );
 }
@@ -562,12 +549,6 @@ function ArrowMesh({ color, label }: { color: string; label: string }) {
         <coneGeometry args={[0.12, 0.35, 8]} />
         <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.5} />
       </mesh>
-      <Html position={[0.4, -0.5, 0]} center>
-        <div className="text-[9px] font-bold px-1 py-0.5 rounded pointer-events-none select-none"
-          style={{ color, backgroundColor: "rgba(0,0,0,0.6)" }}>
-          {label}
-        </div>
-      </Html>
     </group>
   );
 }
@@ -584,7 +565,6 @@ function TargetAssembly({ position, isHit }: { position: [number, number, number
         <meshStandardMaterial color="#3a3a4a" metalness={0.6} roughness={0.4} />
       </mesh>
       <group position={[0, 6.2, 0]}>
-        {/* Target face */}
         {[1.5, 1.2, 0.9, 0.6, 0.3].map((r, i) => {
           const colors = ["#ffffff", "#ff0000", "#ffffff", "#ff0000", "#ffcc00"];
           return (
@@ -594,7 +574,6 @@ function TargetAssembly({ position, isHit }: { position: [number, number, number
             </mesh>
           );
         })}
-        {/* Hit glow */}
         {isHit && (
           <mesh>
             <sphereGeometry args={[0.5, 16, 16]} />
@@ -602,7 +581,6 @@ function TargetAssembly({ position, isHit }: { position: [number, number, number
           </mesh>
         )}
       </group>
-      {/* Distance label */}
       <Text position={[0, 7.5, 0]} fontSize={0.5} color="#6a6a8a" anchorX="center">
         {`${position[0]}m`}
       </Text>

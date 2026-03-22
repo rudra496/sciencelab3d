@@ -28,6 +28,8 @@ export default function CalculusVisualizerPage() {
   const [showDerivative, setShowDerivative] = useState(true);
   const [showIntegral, setShowIntegral] = useState(true);
   const [showTangent, setShowTangent] = useState(true);
+  const [showRiemann, setShowRiemann] = useState(false);
+  const [riemannRects, setRiemannRects] = useState(10);
   const [speed, setSpeed] = useState(1);
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
@@ -74,13 +76,36 @@ export default function CalculusVisualizerPage() {
           { label: "Show Derivative", checked: showDerivative, onChange: setShowDerivative },
           { label: "Show Integral Area", checked: showIntegral, onChange: setShowIntegral },
           { label: "Show Tangent Line", checked: showTangent, onChange: setShowTangent },
+          { label: "Show Riemann Sum", checked: showRiemann, onChange: setShowRiemann },
         ].map((opt) => (
           <label key={opt.label} className="flex items-center justify-between text-sm text-gray-700 cursor-pointer py-2 px-3 bg-gray-100/50 rounded-lg border border-gray-300/50">
             <span>{opt.label}</span>
             <input type="checkbox" checked={opt.checked} onChange={(e) => opt.onChange(e.target.checked)} className="w-4 h-4 rounded accent-green-500" />
           </label>
         ))}
+        {showRiemann && (
+          <ControlSlider
+            label="Riemann Rectangles"
+            value={riemannRects}
+            unit=""
+            min={5}
+            max={50}
+            step={1}
+            color="#16a34a"
+            onChange={setRiemannRects}
+            decimals={0}
+          />
+        )}
       </ControlGroup>
+
+      <div className="bg-green-50/50 rounded-lg p-3 border border-green-200/50">
+        <div className="text-xs text-gray-600 mb-2 font-medium">Calculus Concepts</div>
+        <div className="text-xs text-gray-500">
+          Derivative = instantaneous rate of change<br />
+          Integral = area under the curve<br />
+          Tangent = line touching at a point
+        </div>
+      </div>
 
       <button
         onClick={() => router.push("/experiments/calculus-visualizer/details")}
@@ -130,6 +155,8 @@ export default function CalculusVisualizerPage() {
           showDerivative={showDerivative}
           showIntegral={showIntegral}
           showTangent={showTangent}
+          showRiemann={showRiemann}
+          riemannRects={riemannRects}
           speed={speed}
           isPlaying={isPlaying}
         />

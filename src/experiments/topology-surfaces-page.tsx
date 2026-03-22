@@ -97,12 +97,13 @@ export default function TopologySurfacesPage() {
           surface: { value: 0, unit: data.surfaceType, color: "#ec4899", decimals: 0 },
           genus: { value: data.genus, unit: "holes", color: "#f472b6", decimals: 0 },
           euler: { value: data.eulerCharacteristic, unit: "χ", color: "#fb7185", decimals: 0 },
+          boundary: { value: data.boundaryComponents, unit: "∂", color: "#fda4af", decimals: 0 },
         }}
         columns={1}
       />
       <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
         <div className="text-center font-mono text-pink-400 text-sm">
-          χ = V - E + F = 2 - 2g
+          χ = V - E + F = 2 - 2g (orientable)
         </div>
       </div>
     </>

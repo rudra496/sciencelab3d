@@ -26,6 +26,8 @@ export default function ComplexNumbersPage() {
   const [imaginary, setImaginary] = useState(1.5);
   const [showPlane, setShowPlane] = useState(true);
   const [showPolar, setShowPolar] = useState(true);
+  const [showConjugate, setShowConjugate] = useState(true);
+  const [showSquare, setShowSquare] = useState(true);
   const [rotationSpeed, setRotationSpeed] = useState(0.5);
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
@@ -68,10 +70,12 @@ export default function ComplexNumbersPage() {
         {[
           { label: "Show Plane", checked: showPlane, onChange: setShowPlane },
           { label: "Polar Form", checked: showPolar, onChange: setShowPolar },
+          { label: "Conjugate", checked: showConjugate, onChange: setShowConjugate },
+          { label: "Square (z²)", checked: showSquare, onChange: setShowSquare },
         ].map((opt) => (
           <label key={opt.label} className="flex items-center justify-between text-sm text-gray-700 cursor-pointer py-2 px-3 bg-gray-100/50 rounded-lg border border-gray-300/50">
             <span>{opt.label}</span>
-            <input type="checkbox" checked={opt.checked} onChange={(e) => opt.onChange(e.target.checked)} className="w-4 h-4 rounded accent-rose-500" />
+            <input type="checkbox" checked={opt.checked} onChange={(e) => opt.onChange(e.target.checked)} className="w-4 h-4 rounded" style={{ accentColor: opt.label === "Conjugate" ? "#06b6d4" : opt.label === "Square (z²)" ? "#f97316" : "#f43f5e" }} />
           </label>
         ))}
         <ControlSlider
@@ -135,6 +139,8 @@ export default function ComplexNumbersPage() {
           imaginary={imaginary}
           showPlane={showPlane}
           showPolar={showPolar}
+          showConjugate={showConjugate}
+          showSquare={showSquare}
           rotationSpeed={rotationSpeed}
           isPlaying={isPlaying}
         />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
@@ -9,145 +9,177 @@ interface DopplerSceneProps {
   onDataChange?: (data: DopplerData) => void;
   sourceFrequency?: number;
   sourceVelocity?: number;
+  sourceDirection?: number; // -1 (left) to 1 (right), 0 = stopped
+  autoOscillate?: boolean;
+  observerPosition?: number; // x position
   waveSpeed?: number;
   showWavefronts?: boolean;
-  showCompression?: boolean;
   resetTrigger?: number;
 }
 
 export interface DopplerData {
-  observedFrequency: number;
   sourceFrequency: number;
-  dopplerShift: number;
+  observedFrequency: number;
+  dopplerShiftRatio: number;
   machNumber: number;
-  wavelength: number;
-  shiftType: "redshift" | "blueshift" | "none";
+  waveSpeed: number;
+  shiftType: "blueshift" | "redshift" | "none";
 }
 
 /**
  * World-class Doppler Effect Simulation
+ *
+ * Physics: Uses refs for all state, updates React state only every 8 frames.
+ * Wavefronts are colored based on compression/expansion:
+ * - Blue: Compressed ahead of moving source (higher perceived frequency)
+ * - Red: Expanded behind moving source (lower perceived frequency)
  */
 export function DopplerSceneComponent({
   onDataChange,
   sourceFrequency = 2,
   sourceVelocity = 5,
+  sourceDirection = 0,
+  autoOscillate = true,
+  observerPosition = 15,
   waveSpeed = 10,
   showWavefronts = true,
-  showCompression = true,
   resetTrigger,
 }: DopplerSceneProps) {
-  const sourceRef = useRef<THREE.Mesh>(null);
-  const wavesRef = useRef<THREE.Group>(null);
-
+  // === REFS FOR ALL PHYSICS STATE ===
   const timeRef = useRef(0);
-  const sourcePositionRef = useRef(0);
-  const waves = useRef<Array<{ position: number; time: number }>>([]);
+  const frameCountRef = useRef(0);
+  const sourceXRef = useRef(0);
+  const sourceVelRef = useRef(0);
 
+  // Waves: each wave remembers where it was emitted (emissionX) and when (emissionTime)
+  const wavesRef = useRef<Array<{ emissionX: number; emissionTime: number }>>([]);
+
+  // React state for display (updated only every 8 frames)
   const [data, setData] = useState<DopplerData>({
-    observedFrequency: sourceFrequency,
     sourceFrequency,
-    dopplerShift: 0,
-    machNumber: sourceVelocity / waveSpeed,
-    wavelength: waveSpeed / sourceFrequency,
+    observedFrequency: sourceFrequency,
+    dopplerShiftRatio: 1,
+    machNumber: 0,
+    waveSpeed,
     shiftType: "none",
   });
 
   // Reset handler
   useEffect(() => {
     if (resetTrigger !== undefined) {
-      sourcePositionRef.current = -15;
-      waves.current = [];
       timeRef.current = 0;
+      frameCountRef.current = 0;
+      sourceXRef.current = 0;
+      sourceVelRef.current = 0;
+      wavesRef.current = [];
     }
   }, [resetTrigger]);
 
   useFrame((_, delta) => {
     timeRef.current += delta;
+    frameCountRef.current++;
 
-    // Update source position (oscillating back and forth)
-    const oscillationSpeed = 0.3;
-    const amplitude = 12;
-    sourcePositionRef.current = Math.sin(timeRef.current * oscillationSpeed) * amplitude;
+    // === UPDATE SOURCE PHYSICS ===
+    if (autoOscillate) {
+      // Auto-oscillate: source moves back and forth sinusoidally
+      const oscillationSpeed = 0.5;
+      const amplitude = 10;
+      sourceXRef.current = Math.sin(timeRef.current * oscillationSpeed) * amplitude;
+      sourceVelRef.current = Math.cos(timeRef.current * oscillationSpeed) * amplitude * oscillationSpeed;
+    } else {
+      // Manual control: source moves based on direction input
+      const maxPos = 18;
+      sourceVelRef.current = sourceDirection * sourceVelocity;
+      sourceXRef.current += sourceVelRef.current * delta;
 
-    if (sourceRef.current) {
-      sourceRef.current.position.x = sourcePositionRef.current;
+      // Clamp to bounds
+      if (sourceXRef.current > maxPos) sourceXRef.current = maxPos;
+      if (sourceXRef.current < -maxPos) sourceXRef.current = -maxPos;
     }
 
-    // Emit new wave at regular intervals
+    // === EMIT NEW WAVES ===
     const waveInterval = 1 / sourceFrequency;
-    const lastWave = waves.current[waves.current.length - 1];
-    if (!lastWave || timeRef.current - lastWave.time >= waveInterval) {
-      waves.current.push({
-        position: sourcePositionRef.current,
-        time: timeRef.current,
+    const lastWave = wavesRef.current[wavesRef.current.length - 1];
+
+    if (!lastWave || timeRef.current - lastWave.emissionTime >= waveInterval) {
+      wavesRef.current.push({
+        emissionX: sourceXRef.current,
+        emissionTime: timeRef.current,
       });
-      // Keep only last 20 waves
-      if (waves.current.length > 20) {
-        waves.current.shift();
+      // Keep only last 25 waves for performance
+      if (wavesRef.current.length > 25) {
+        wavesRef.current.shift();
       }
     }
 
-    // Calculate Doppler shift for observer at right side (x = 15)
-    const observerX = 15;
-    const sourceX = sourcePositionRef.current;
-    const sourceVel = Math.cos(timeRef.current * oscillationSpeed) * amplitude * oscillationSpeed;
+    // === UPDATE REACT STATE EVERY 8 FRAMES ===
+    if (frameCountRef.current % 8 === 0) {
+      // Calculate Doppler shift for observer
+      const obsX = observerPosition;
+      const srcX = sourceXRef.current;
+      const srcVel = sourceVelRef.current;
 
-    // Doppler formula: f' = f * (v / (v - vs))
-    // Positive vs means moving away from observer
-    let observedFreq: number;
-    let shiftType: "redshift" | "blueshift" | "none";
+      // Doppler formula: f_obs = f_src * (v_wave / (v_wave - v_source))
+      // where v_source is positive when moving TOWARD observer
+      const sourceToObserver = obsX - srcX;
+      const sourceVelTowardObserver = sourceToObserver > 0 ? srcVel : -srcVel;
 
-    if (sourceVel > 0) {
-      // Moving away from observer (right)
-      observedFreq = sourceFrequency * (waveSpeed / (waveSpeed + sourceVel));
-      shiftType = "redshift";
-    } else if (sourceVel < 0) {
-      // Moving towards observer (right)
-      observedFreq = sourceFrequency * (waveSpeed / (waveSpeed - Math.abs(sourceVel)));
-      shiftType = "blueshift";
-    } else {
-      observedFreq = sourceFrequency;
-      shiftType = "none";
+      let observedFreq: number;
+      let shiftType: "blueshift" | "redshift" | "none";
+
+      if (Math.abs(srcVel) < 0.1) {
+        observedFreq = sourceFrequency;
+        shiftType = "none";
+      } else if (sourceVelTowardObserver > 0) {
+        // Source moving toward observer: blueshift
+        observedFreq = sourceFrequency * (waveSpeed / (waveSpeed - sourceVelTowardObserver));
+        shiftType = "blueshift";
+      } else {
+        // Source moving away from observer: redshift
+        observedFreq = sourceFrequency * (waveSpeed / (waveSpeed + Math.abs(sourceVelTowardObserver)));
+        shiftType = "redshift";
+      }
+
+      const machNumber = Math.abs(srcVel) / waveSpeed;
+      const dopplerShiftRatio = observedFreq / sourceFrequency;
+
+      const newData: DopplerData = {
+        sourceFrequency,
+        observedFrequency: Math.max(0, observedFreq),
+        dopplerShiftRatio,
+        machNumber,
+        waveSpeed,
+        shiftType,
+      };
+
+      setData(newData);
+      onDataChange?.(newData);
     }
-
-    const machNumber = Math.abs(sourceVel) / waveSpeed;
-    const dopplerShift = observedFreq - sourceFrequency;
-
-    const newData: DopplerData = {
-      observedFrequency: observedFreq,
-      sourceFrequency,
-      dopplerShift,
-      machNumber,
-      wavelength: waveSpeed / observedFreq,
-      shiftType,
-    };
-
-    setData(newData);
-    onDataChange?.(newData);
   });
 
-  // Wave rings
-  const waveElements = useMemo(() => {
-    return waves.current.map((wave, i) => {
-      const age = timeRef.current - wave.time;
-      const radius = age * waveSpeed;
-      const opacity = Math.max(0, 1 - age / 5);
+  // Get wave color based on Doppler effect
+  // Waves ahead of source (in direction of motion) are compressed -> blue
+  // Waves behind source are expanded -> red
+  const getWaveColor = (waveEmissionX: number): string => {
+    const currentSourceX = sourceXRef.current;
+    const sourceVel = sourceVelRef.current;
 
-      return (
-        <group key={i} position={[wave.position, 0, 0]}>
-          <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[radius - 0.05, radius + 0.05, 64]} />
-            <meshBasicMaterial
-              color={data.shiftType === "blueshift" ? "#3b82f6" : data.shiftType === "redshift" ? "#ef4444" : "#22c55e"}
-              transparent
-              opacity={opacity * 0.6}
-              side={THREE.DoubleSide}
-            />
-          </mesh>
-        </group>
-      );
-    });
-  }, [timeRef.current, data.shiftType]);
+    if (Math.abs(sourceVel) < 0.1) return "#22c55e"; // Green when stationary
+
+    // If source moving right (vel > 0):
+    // - Waves emitted at smaller X (behind) are redshifted
+    // - Waves ahead would be blueshifted (but haven't been emitted yet)
+    // If source moving left (vel < 0):
+    // - Waves emitted at larger X (behind) are redshifted
+
+    const relativePos = waveEmissionX - currentSourceX;
+    const movingRight = sourceVel > 0;
+
+    // Wave is "behind" the source if it's on the opposite side of motion
+    const isBehind = movingRight ? relativePos < 0 : relativePos > 0;
+
+    return isBehind ? "#ef4444" : "#3b82f6"; // Red behind, blue ahead
+  };
 
   return (
     <group>
@@ -158,68 +190,94 @@ export function DopplerSceneComponent({
       </mesh>
       <gridHelper args={[80, 80, "#1a1a3e", "#0a0a1e"]} position={[0, -1.99, 0]} />
 
-      {/* Observer position */}
-      <group position={[15, 0, 0]}>
-        {/* Observer marker */}
-        <mesh>
-          <sphereGeometry args={[0.5, 32, 32]} />
+      {/* Observer - adjustable position */}
+      <group position={[observerPosition, 0, 0]}>
+        {/* Observer base */}
+        <mesh position={[0, -1, 0]}>
+          <cylinderGeometry args={[0.8, 1, 0.5, 32]} />
+          <meshStandardMaterial color="#4a5568" metalness={0.5} roughness={0.5} />
+        </mesh>
+        {/* Observer head/sensor */}
+        <mesh position={[0, 0.3, 0]}>
+          <sphereGeometry args={[0.6, 32, 32]} />
           <meshStandardMaterial
             color="#8b5cf6"
             emissive="#8b5cf6"
-            emissiveIntensity={0.5}
+            emissiveIntensity={0.6}
+            metalness={0.3}
+            roughness={0.4}
           />
         </mesh>
-        {/* Observer label */}
-        <mesh position={[0, 1.5, 0]}>
-          <sphereGeometry args={[0.15, 16, 16]} />
-          <meshBasicMaterial color="#8b5cf6" />
-        </mesh>
-        {/* Ear symbol */}
-        <mesh position={[0.3, 0.3, 0.3]}>
+        {/* "Ear" indicator */}
+        <mesh position={[0.4, 0.4, 0]}>
           <sphereGeometry args={[0.2, 16, 16]} />
-          <meshBasicMaterial color="#ddd" />
+          <meshBasicMaterial color="#c4b5fd" />
+        </mesh>
+        {/* Glow effect */}
+        <mesh position={[0, 0.3, 0]}>
+          <sphereGeometry args={[0.9, 32, 32]} />
+          <meshBasicMaterial color="#8b5cf6" transparent opacity={0.15} />
+        </mesh>
+        {/* Observer label pole */}
+        <mesh position={[0, 1.5, 0]}>
+          <cylinderGeometry args={[0.05, 0.05, 1.2, 8]} />
+          <meshStandardMaterial color="#666" />
+        </mesh>
+        {/* Label */}
+        <mesh position={[0, 2.2, 0]} rotation={[0, 0, 0]}>
+          <sphereGeometry args={[0.25, 16, 16]} />
+          <meshBasicMaterial color="#8b5cf6" />
         </mesh>
       </group>
 
-      {/* Sound source */}
-      <mesh ref={sourceRef} position={[0, 0, 0]} castShadow>
-        <sphereGeometry args={[0.8, 32, 32]} />
-        <meshStandardMaterial
-          color="#f59e0b"
-          emissive="#f59e0b"
-          emissiveIntensity={0.8}
-          metalness={0.5}
-          roughness={0.3}
-        />
-      </mesh>
-      {/* Source glow */}
-      <mesh ref={sourceRef} position={[0, 0, 0]}>
-        <sphereGeometry args={[1, 32, 32]} />
-        <meshBasicMaterial
-          color="#f59e0b"
-          transparent
-          opacity={0.2}
-        />
-      </mesh>
+      {/* Sound source - moves left/right */}
+      <group position={[sourceXRef.current, 0, 0]}>
+        {/* Source sphere (speaker) */}
+        <mesh castShadow>
+          <sphereGeometry args={[1, 32, 32]} />
+          <meshStandardMaterial
+            color="#f59e0b"
+            emissive="#f59e0b"
+            emissiveIntensity={0.8}
+            metalness={0.4}
+            roughness={0.3}
+          />
+        </mesh>
+        {/* Outer glow */}
+        <mesh>
+          <sphereGeometry args={[1.3, 32, 32]} />
+          <meshBasicMaterial color="#f59e0b" transparent opacity={0.2} />
+        </mesh>
+        {/* Direction indicator */}
+        {Math.abs(sourceVelRef.current) > 0.1 && (
+          <group rotation={[0, 0, sourceVelRef.current > 0 ? -Math.PI / 2 : Math.PI / 2]}>
+            <mesh position={[1.8, 0, 0]}>
+              <coneGeometry args={[0.4, 0.8, 8]} />
+              <meshBasicMaterial color="#f59e0b" />
+            </mesh>
+          </group>
+        )}
+      </group>
 
-      {/* Wavefronts */}
+      {/* Wavefronts - circular waves emanating from emission points */}
       {showWavefronts && (
-        <group ref={wavesRef}>
-          {waves.current.map((wave, i) => {
-            const age = timeRef.current - wave.time;
+        <group>
+          {wavesRef.current.map((wave, i) => {
+            const age = timeRef.current - wave.emissionTime;
             const radius = age * waveSpeed;
-            const opacity = Math.max(0, 0.8 - age / 4);
+            const maxRadius = 35;
+
+            if (radius > maxRadius || radius < 0.1) return null;
+
+            const opacity = Math.max(0, 0.7 - (age / 6));
+            const waveColor = getWaveColor(wave.emissionX);
 
             return (
-              <group key={i} position={[wave.position, 0, 0]}>
+              <group key={i} position={[wave.emissionX, 0, 0]}>
                 <mesh rotation={[Math.PI / 2, 0, 0]}>
-                  <ringGeometry args={[radius - 0.08, radius + 0.08, 64]} />
+                  <ringGeometry args={[radius - 0.1, radius + 0.1, 64]} />
                   <meshBasicMaterial
-                    color={
-                      sourcePositionRef.current < wave.position
-                        ? "#3b82f6" // Compressed (blueshift)
-                        : "#ef4444" // Expanded (redshift)
-                    }
+                    color={waveColor}
                     transparent
                     opacity={opacity}
                     side={THREE.DoubleSide}
@@ -231,79 +289,45 @@ export function DopplerSceneComponent({
         </group>
       )}
 
-      {/* Center line */}
+      {/* Center reference line */}
       <Line
-        points={[[-30, 0, 0], [30, 0, 0]]}
-        color="#333"
+        points={[[-35, 0, 0], [35, 0, 0]]}
+        color="#333355"
         lineWidth={2}
-        opacity={0.5}
+        opacity={0.6}
         transparent
       />
 
-      {/* Direction indicator */}
-      <group position={[0, -1.5, 0]}>
-        <Line
-          points={[[-10, 0, 0], [10, 0, 0]]}
-          color="#666"
-          lineWidth={3}
-          dashed
-          dashSize={0.5}
-          gapSize={0.3}
-        />
-        {/* Arrowheads */}
-        <mesh position={[-10.5, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <coneGeometry args={[0.3, 0.6, 8]} />
-          <meshStandardMaterial color="#666" />
-        </mesh>
-        <mesh position={[10.5, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <coneGeometry args={[0.3, 0.6, 8]} />
-          <meshStandardMaterial color="#666" />
-        </mesh>
-      </group>
+      {/* Direction indicators on floor */}
+      <Line
+        points={[[-25, -1.95, 5], [-20, -1.95, 5]]}
+        color="#4a5568"
+        lineWidth={3}
+        dashed
+        dashSize={0.5}
+        gapSize={0.3}
+      />
+      <mesh position={[-26, -1.9, 5]} rotation={[0, 0, Math.PI]}>
+        <coneGeometry args={[0.3, 0.6, 8]} />
+        <meshStandardMaterial color="#4a5568" />
+      </mesh>
+      <mesh position={[-19, -1.9, 5]} rotation={[0, 0, 0]}>
+        <coneGeometry args={[0.3, 0.6, 8]} />
+        <meshStandardMaterial color="#4a5568" />
+      </mesh>
 
-      {/* Mach cone (supersonic) */}
+      {/* Mach cone for supersonic */}
       {data.machNumber >= 1 && (
-        <group position={[sourcePositionRef.current, 0, 0]}>
-          {/* Mach cone visualization */}
-          <mesh rotation={[0, 0, Math.PI / 2]}>
-            <coneGeometry args={[15, 30, 2]} />
-          <meshBasicMaterial
+        <group position={[sourceXRef.current, 0, 0]}>
+          <mesh rotation={[0, sourceVelRef.current > 0 ? 0 : Math.PI, 0]}>
+            <coneGeometry args={[20, 40, 2]} />
+            <meshBasicMaterial
               color="#ff00ff"
               transparent
-              opacity={0.1}
+              opacity={0.08}
               side={THREE.DoubleSide}
             />
           </mesh>
-        </group>
-      )}
-
-      {/* Frequency visualizer */}
-      {showCompression && (
-        <group position={[-20, 5, 0]}>
-          {/* Background */}
-          <mesh>
-            <planeGeometry args={[8, 4]} />
-            <meshBasicMaterial color="#0a0a1a" transparent opacity={0.9} />
-          </mesh>
-          {/* Wave representation */}
-          <group position={[0, 0, 0.1]}>
-            {Array.from({ length: 20 }).map((_, i) => {
-              const x = (i - 10) * 0.4;
-              const wavelength = data.wavelength;
-              const compression = data.shiftType === "blueshift" ? 0.5 : data.shiftType === "redshift" ? 1.5 : 1;
-              const y = Math.sin((x / wavelength) * Math.PI * 4) * 0.5;
-              const width = compression * 0.3;
-
-              return (
-                <mesh key={i} position={[x, y, 0]}>
-                  <boxGeometry args={[width, 0.1, 0.1]} />
-                  <meshBasicMaterial
-                    color={data.shiftType === "blueshift" ? "#3b82f6" : data.shiftType === "redshift" ? "#ef4444" : "#22c55e"}
-                  />
-                </mesh>
-              );
-            })}
-          </group>
         </group>
       )}
     </group>

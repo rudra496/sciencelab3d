@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ExperimentContainer,
   SimulationController,
   FloatingControlPanel,
   DataPanel,
+  ControlGroup,
+  ControlSlider,
+  DataGrid,
 } from '@/components/experiment-ui';
-import { ControlGroup, ControlSlider, DataGrid } from '@/components/experiment-ui/ExperimentControls';
 import DiffusionSceneComponent, { DiffusionData } from './diffusion-scene';
 
 export default function DiffusionPage() {
@@ -16,8 +18,7 @@ export default function DiffusionPage() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
-  const [showControls, setShowControls] = useState(true);
-  const [showData, setShowData] = useState(false);
+  const [showDataPanel, setShowDataPanel] = useState(true);
 
   const [temperature, setTemperature] = useState(1);
   const [permeability, setPermeability] = useState(1);
@@ -28,6 +29,7 @@ export default function DiffusionPage() {
     highConcentration: 40,
     lowConcentration: 0,
     equilibrium: 0,
+    averageSpeed: 0,
   });
 
   const handlePlayPause = useCallback(() => {
@@ -50,87 +52,91 @@ export default function DiffusionPage() {
     setDiffusionData(data);
   }, []);
 
-  const parameterControls = useMemo(
-    () => (
-      <>
-        <ControlGroup title="Diffusion Factors">
-          <ControlSlider
-            label="Temperature"
-            value={temperature}
-            min={0.5}
-            max={3}
-            step={0.1}
-            onChange={setTemperature}
-              />
-          <ControlSlider
-            label="Membrane Permeability"
-            value={permeability}
-            min={0.1}
-            max={1}
-            step={0.1}
-            onChange={setPermeability}
-              />
-          <ControlSlider
-            label="Initial Concentration"
-            value={concentration}
-            min={0.5}
-            max={2}
-            step={0.1}
-            onChange={setConcentration}
-              />
-          <ControlSlider
-            label="Speed"
-            value={speed}
-            min={0.5}
-            max={3}
-            step={0.1}
-            onChange={setSpeed}
-              />
-        </ControlGroup>
+  const parameterControls = (
+    <div className="space-y-4">
+      <ControlGroup title="Diffusion Factors">
+        <ControlSlider
+          label="Temperature"
+          value={temperature}
+          unit=""
+          min={0.5}
+          max={3}
+          step={0.1}
+          color="#f59e0b"
+          onChange={setTemperature}
+          decimals={1}
+        />
+        <ControlSlider
+          label="Membrane Permeability"
+          value={permeability}
+          unit=""
+          min={0.1}
+          max={1}
+          step={0.1}
+          color="#6366f1"
+          onChange={setPermeability}
+          decimals={1}
+        />
+        <ControlSlider
+          label="Initial Concentration"
+          value={concentration}
+          unit=""
+          min={0.5}
+          max={2}
+          step={0.1}
+          color="#a855f7"
+          onChange={setConcentration}
+          decimals={1}
+        />
+        <ControlSlider
+          label="Speed"
+          value={speed}
+          unit=""
+          min={0.5}
+          max={3}
+          step={0.1}
+          color="#22c55e"
+          onChange={setSpeed}
+          decimals={1}
+        />
+      </ControlGroup>
 
-        <button
-          onClick={() => router.push('/experiments/diffusion/details')}
-          className="w-full mt-4 px-4 py-2 bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#6366f1] rounded-lg border border-[#6366f1]/50 transition-colors text-sm font-medium"
-        >
-          View Details
-        </button>
-      </>
-    ),
-    [temperature, permeability, concentration, speed, router]
+      <button
+        onClick={() => router.push('/experiments/diffusion/details')}
+        className="w-full py-2.5 bg-gradient-to-r from-indigo-100 to-indigo-200 hover:from-indigo-200 hover:to-indigo-300 text-indigo-700 font-medium text-sm rounded-lg transition-all border border-indigo-300/50 flex items-center justify-center gap-2"
+      >
+        📖 View Experiment Details
+      </button>
+    </div>
   );
 
-  const dataContent = useMemo(
-    () => (
+  const dataPanelContent = diffusionData ? (
+    <>
       <DataGrid
         data={{
           left: { value: diffusionData.highConcentration, unit: "particles", color: "#6366f1", decimals: 0 },
-          right: { value: diffusionData.lowConcentration, unit: "particles", color: "#8b5cf6", decimals: 0 },
+          right: { value: diffusionData.lowConcentration, unit: "particles", color: "#a855f7", decimals: 0 },
           equilibrium: { value: diffusionData.equilibrium, unit: "%", color: "#06b6d4", decimals: 1 },
+          avgSpeed: { value: diffusionData.averageSpeed, unit: "units/s", color: "#f59e0b", decimals: 2 },
         }}
         columns={1}
       />
-    ),
-    [diffusionData]
-  );
-
-  const dataPanel = useMemo(
-    () => (
-      <DataPanel isVisible={showData} onToggle={() => setShowData((d) => !d)}>
-        {dataContent}
-      </DataPanel>
-    ),
-    [showData, dataContent]
+    </>
+  ) : (
+    <div className="text-center text-gray-500 text-sm py-8">
+      Waiting for simulation data...
+    </div>
   );
 
   return (
-    <div className="w-full h-screen relative">
+    <>
       <ExperimentContainer
         title="Molecular Diffusion"
         description="Observe particle movement across a semi-permeable membrane"
         cameraPosition={[0, 2, 12]}
         backgroundColor="#050510"
         controls={null}
-        dataPanel={dataPanel}
+        dataPanel={null}
       >
         <DiffusionSceneComponent
           onDataChange={handleDataChange}
@@ -150,25 +156,21 @@ export default function DiffusionPage() {
         onReset={handleReset}
         speed={simulationSpeed}
         onSpeedChange={handleSpeedChange}
-        timeElapsed={0}
       />
 
-      {showControls && (
-        <FloatingControlPanel
-            initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}
-        >
-          {parameterControls}
-        </FloatingControlPanel>
-      )}
+      <FloatingControlPanel
+        title="⚙️ Diffusion Parameters"
+        initialPosition={{ x: 20, y: 80 }}
+      >
+        {parameterControls}
+      </FloatingControlPanel>
 
-      {!showControls && (
-        <button
-          onClick={() => setShowControls(true)}
-          className="fixed top-20 right-4 z-20 px-4 py-2 bg-[#6366f1]/20 hover:bg-[#6366f1]/30 text-[#6366f1] rounded-lg border border-[#6366f1]/50 transition-colors text-sm font-medium"
-        >
-          Show Controls
-        </button>
-      )}
-    </div>
+      <DataPanel
+        isVisible={showDataPanel}
+        onToggle={() => setShowDataPanel(!showDataPanel)}
+      >
+        {dataPanelContent}
+      </DataPanel>
+    </>
   );
 }

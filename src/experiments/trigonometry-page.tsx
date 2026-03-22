@@ -89,6 +89,7 @@ export default function TrigonometryPage() {
       <DataGrid
         data={{
           angle: { value: data.angle, unit: "°", color: "#8b5cf6", decimals: 0 },
+          radians: { value: data.radianValue, unit: "rad", color: "#a78bfa", decimals: 2 },
           sin: { value: data.sin, unit: "sin", color: "#22c55e", decimals: 3 },
           cos: { value: data.cos, unit: "cos", color: "#3b82f6", decimals: 3 },
           tan: { value: Math.abs(data.tan) > 100 ? 0 : data.tan, unit: "tan", color: "#fbbf24", decimals: 3 },

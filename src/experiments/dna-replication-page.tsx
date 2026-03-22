@@ -42,6 +42,7 @@ export default function DNAReplicationPage() {
     setShowPolymerase(true);
     setShowPrimase(true);
     setStage(0);
+    setDnaData({ stage: 'Initiation', unwoundPercent: 0, nucleotidesAdded: 0 });
   }, []);
 
   const handleSpeedChange = useCallback((s: number) => {
@@ -65,7 +66,7 @@ export default function DNAReplicationPage() {
             onChange={setSpeed}
               />
           <div className="mt-3 space-y-2">
-            <label className="text-xs text-gray-400 block mb-2">Stage</label>
+            <label className="text-xs text-gray-400 block mb-2">Replication Stage</label>
             {['Initiation', 'Elongation', 'Termination'].map((s, i) => (
               <button
                 key={s}
@@ -129,10 +130,10 @@ export default function DNAReplicationPage() {
     () => (
       <DataGrid
         data={{
-          stage: { value: 0, unit: dnaData.stage, color: "#3b82f6", decimals: 0 },
-          unwound: { value: dnaData.unwoundPercent, unit: "%", color: "#06b6d4", decimals: 0 },
-          nucleotides: { value: dnaData.nucleotidesAdded, unit: "added", color: "#8b5cf6", decimals: 0 },
-          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? "Active" : "Paused", color: "#22c55e", decimals: 0 },
+          stage: { value: 0, unit: dnaData.stage, color: '#3b82f6', decimals: 0 },
+          unwound: { value: dnaData.unwoundPercent, unit: '%', color: '#06b6d4', decimals: 0 },
+          nucleotides: { value: dnaData.nucleotidesAdded, unit: 'bases', color: '#8b5cf6', decimals: 0 },
+          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
       />

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { Line } from "@react-three/drei";
 import * as THREE from "three";
 
 export interface CrystalLatticeData {
@@ -10,6 +11,7 @@ export interface CrystalLatticeData {
   atomsPerCell: number;
   coordinationNumber: number;
   packingEfficiency: number;
+  totalAtoms: number;
 }
 
 export interface CrystalLatticeSceneProps {
@@ -21,7 +23,7 @@ export interface CrystalLatticeSceneProps {
 }
 
 /**
- * Crystal Lattice scene component
+ * Crystal Lattice scene component - Performance optimized
  * Visualizes 3D crystal structures: FCC, BCC, HCP, and diamond
  */
 export function CrystalLatticeSceneComponent({
@@ -32,6 +34,20 @@ export function CrystalLatticeSceneComponent({
   onDataChange
 }: CrystalLatticeSceneProps) {
   const groupRef = useRef<THREE.Group>(null);
+
+  // Performance refs - physics state updated every frame
+  const frameCountRef = useRef(0);
+  const rotationRef = useRef(0);
+
+  // React state - updated only every 8 frames
+  const [data, setData] = useState<CrystalLatticeData>({
+    latticeType: "FCC",
+    unitCells: 8,
+    atomsPerCell: 4,
+    coordinationNumber: 12,
+    packingEfficiency: 0.74,
+    totalAtoms: 32,
+  });
 
   // Crystal structure properties
   const latticeData: Record<"FCC" | "BCC" | "HCP" | "diamond", {
@@ -45,26 +61,7 @@ export function CrystalLatticeSceneComponent({
     diamond: { atomsPerCell: 8, coordinationNumber: 4, packingEfficiency: 0.34 },
   };
 
-  // Report data changes
-  useEffect(() => {
-    onDataChange?.({
-      latticeType,
-      unitCells: 8,
-      atomsPerCell: latticeData[latticeType].atomsPerCell,
-      coordinationNumber: latticeData[latticeType].coordinationNumber,
-      packingEfficiency: latticeData[latticeType].packingEfficiency,
-    });
-  }, [latticeType, onDataChange]);
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return;
-    if (isPlaying) {
-      groupRef.current.rotation.y += delta * 0.15;
-      groupRef.current.rotation.x = Math.sin(delta * 0.5) * 0.05;
-    }
-  });
-
-  // Generate lattice positions
+  // Generate lattice positions using useMemo for performance
   const getLatticePositions = (): THREE.Vector3[] => {
     const positions: THREE.Vector3[] = [];
     const spacing = 2;
@@ -89,15 +86,13 @@ export function CrystalLatticeSceneComponent({
       for (let x = 0; x < layers; x++) {
         for (let y = 0; y < layers; y++) {
           for (let z = 0; z < layers; z++) {
-            // Corner atoms
             positions.push(new THREE.Vector3(x * spacing, y * spacing, z * spacing));
-            // Body center
             positions.push(new THREE.Vector3(x * spacing + spacing/2, y * spacing + spacing/2, z * spacing + spacing/2));
           }
         }
       }
     } else if (latticeType === "HCP") {
-      // Hexagonal Close-Packed (simplified)
+      // Hexagonal Close-Packed
       for (let layer = 0; layer < 3; layer++) {
         const offset = layer % 2 === 0 ? 0 : spacing/2;
         for (let x = -1; x <= 1; x++) {
@@ -115,12 +110,10 @@ export function CrystalLatticeSceneComponent({
       for (let x = 0; x < layers; x++) {
         for (let y = 0; y < layers; y++) {
           for (let z = 0; z < layers; z++) {
-            // First FCC lattice
             positions.push(new THREE.Vector3(x * spacing, y * spacing, z * spacing));
             positions.push(new THREE.Vector3(x * spacing + spacing/2, y * spacing + spacing/2, z * spacing));
             positions.push(new THREE.Vector3(x * spacing + spacing/2, y * spacing, z * spacing + spacing/2));
             positions.push(new THREE.Vector3(x * spacing, y * spacing + spacing/2, z * spacing + spacing/2));
-            // Second FCC lattice (offset)
             positions.push(new THREE.Vector3(x * spacing + spacing/4, y * spacing + spacing/4, z * spacing + spacing/4));
             positions.push(new THREE.Vector3(x * spacing + spacing*0.75, y * spacing + spacing*0.75, z * spacing + spacing/4));
             positions.push(new THREE.Vector3(x * spacing + spacing*0.75, y * spacing + spacing/4, z * spacing + spacing*0.75));
@@ -129,30 +122,50 @@ export function CrystalLatticeSceneComponent({
         }
       }
     }
-
     return positions;
   };
 
   const atomPositions = useMemo(() => getLatticePositions(), [latticeType]);
 
-  // Generate bonds
-  const getBonds = (): [THREE.Vector3, THREE.Vector3][] => {
-    const bonds: [THREE.Vector3, THREE.Vector3][] = [];
+  // Generate bonds using Line from drei
+  const bondLines = useMemo(() => {
+    if (!showBonds) return [];
+
+    const bonds: { start: [number, number, number]; end: [number, number, number] }[] = [];
     const maxDistance = latticeType === "diamond" ? 1.8 : 1.5;
 
     for (let i = 0; i < atomPositions.length; i++) {
       for (let j = i + 1; j < atomPositions.length; j++) {
         const dist = atomPositions[i].distanceTo(atomPositions[j]);
         if (dist < maxDistance && dist > 0.1) {
-          bonds.push([atomPositions[i], atomPositions[j]]);
+          bonds.push({
+            start: [atomPositions[i].x, atomPositions[i].y, atomPositions[i].z],
+            end: [atomPositions[j].x, atomPositions[j].y, atomPositions[j].z],
+          });
         }
       }
     }
 
     return bonds;
-  };
+  }, [atomPositions, latticeType, showBonds]);
 
-  const bonds = useMemo(() => getBonds(), [atomPositions, latticeType]);
+  // Unit cell wireframe using Line from drei
+  const unitCellLines = useMemo(() => {
+    if (!showUnitCell) return [];
+
+    const lines: { points: [number, number, number][] }[] = [];
+    const edges = [
+      [[0,0,0], [2,0,0]], [[2,0,0], [2,2,0]], [[2,2,0], [0,2,0]], [[0,2,0], [0,0,0]],
+      [[0,0,2], [2,0,2]], [[2,0,2], [2,2,2]], [[2,2,2], [0,2,2]], [[0,2,2], [0,0,2]],
+      [[0,0,0], [0,0,2]], [[2,0,0], [2,0,2]], [[2,2,0], [2,2,2]], [[0,2,0], [0,2,2]],
+    ];
+
+    edges.forEach(edge => {
+      lines.push({ points: [edge[0] as [number, number, number], edge[1] as [number, number, number]] });
+    });
+
+    return lines;
+  }, [showUnitCell]);
 
   // Center the lattice
   const centerOffset = useMemo(() => {
@@ -162,84 +175,91 @@ export function CrystalLatticeSceneComponent({
     return center.negate();
   }, [atomPositions]);
 
+  // Throttled data updates (every 8 frames)
+  useFrame((_, delta) => {
+    if (!groupRef.current) return;
+
+    if (isPlaying) {
+      rotationRef.current += delta * 0.15;
+      groupRef.current.rotation.y = rotationRef.current;
+      groupRef.current.rotation.x = Math.sin(rotationRef.current * 0.3) * 0.05;
+    }
+
+    frameCountRef.current++;
+
+    if (frameCountRef.current % 8 === 0) {
+      const newData: CrystalLatticeData = {
+        latticeType,
+        unitCells: 8,
+        atomsPerCell: latticeData[latticeType].atomsPerCell,
+        coordinationNumber: latticeData[latticeType].coordinationNumber,
+        packingEfficiency: latticeData[latticeType].packingEfficiency,
+        totalAtoms: atomPositions.length,
+      };
+
+      setData(newData);
+      onDataChange?.(newData);
+    }
+  });
+
+  // Get atom color based on position
+  const getAtomColor = (index: number) => {
+    const colors = ["#a855f7", "#ec4899", "#8b5cf6", "#d946ef"];
+    return colors[index % colors.length];
+  };
+
   return (
     <>
       <group ref={groupRef} position={[centerOffset.x, centerOffset.y, centerOffset.z]}>
-        {/* Unit cell wireframe */}
-        {showUnitCell && (
-          <lineSegments>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                args={[new Float32Array([
-                  0, 0, 0,  2, 0, 0,  2, 0, 0,  2, 2, 0,  2, 2, 0,  0, 2, 0,  0, 2, 0,  0, 0, 0,
-                  0, 0, 2,  2, 0, 2,  2, 0, 2,  2, 2, 2,  2, 2, 2,  0, 2, 2,  0, 2, 2,  0, 0, 2,
-                  0, 0, 0,  0, 0, 2,  2, 0, 0,  2, 0, 2,  2, 2, 0,  2, 2, 2,  0, 2, 0,  0, 2, 2,
-                ]), 3]}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial color="#a855f7" transparent opacity={0.5} />
-          </lineSegments>
-        )}
-
-        {/* Bonds */}
-        {showBonds && bonds.map((bond, i) => (
-          <mesh key={`bond-${i}`} position={[
-            (bond[0].x + bond[1].x) / 2,
-            (bond[0].y + bond[1].y) / 2,
-            (bond[0].z + bond[1].z) / 2
-          ]}>
-            <cylinderGeometry args={[0.03, 0.03, bond[0].distanceTo(bond[1]), 4]} />
-            <meshStandardMaterial
-              color="#a855f7"
-              emissive="#a855f7"
-              emissiveIntensity={0.2}
-            />
-            <group rotation={[0, 0, Math.PI / 2]} position={[0, 0, 0]}>
-              <primitive object={new THREE.Vector3(
-                bond[1].x - bond[0].x,
-                bond[1].y - bond[0].y,
-                bond[1].z - bond[0].z
-              ).normalize()} />
-            </group>
-          </mesh>
+        {/* Unit cell wireframe using Line from drei */}
+        {unitCellLines.map((line, i) => (
+          <Line
+            key={`unit-cell-${i}`}
+            points={line.points}
+            color="#a855f7"
+            lineWidth={2}
+            opacity={0.6}
+            transparent
+          />
         ))}
 
-        {/* Atoms */}
-        {atomPositions.map((pos, i) => (
-          <mesh key={i} position={pos} castShadow>
-            <sphereGeometry args={[0.2, 16, 16]} />
-            <meshStandardMaterial
-              color="#a855f7"
-              emissive="#a855f7"
-              emissiveIntensity={0.3}
-              metalness={0.5}
-              roughness={0.3}
-            />
-          </mesh>
-        ))}
-
-        {/* Corner highlights for unit cell */}
+        {/* Corner highlights */}
         {showUnitCell && [
           [0,0,0], [2,0,0], [2,2,0], [0,2,0],
           [0,0,2], [2,0,2], [2,2,2], [0,2,2],
         ].map((pos, i) => (
           <mesh key={`corner-${i}`} position={pos as [number, number, number]}>
             <sphereGeometry args={[0.08, 8, 8]} />
-            <meshStandardMaterial color="#ec4899" />
+            <meshStandardMaterial color="#ec4899" emissive="#ec4899" emissiveIntensity={0.5} />
+          </mesh>
+        ))}
+
+        {/* Bonds using Line from drei */}
+        {bondLines.map((bond, i) => (
+          <Line
+            key={`bond-${i}`}
+            points={[bond.start, bond.end]}
+            color="#a855f7"
+            lineWidth={3}
+            opacity={0.4}
+            transparent
+          />
+        ))}
+
+        {/* Atoms */}
+        {atomPositions.map((pos, i) => (
+          <mesh key={i} position={pos} castShadow>
+            <sphereGeometry args={[0.25, 16, 16]} />
+            <meshStandardMaterial
+              color={getAtomColor(i)}
+              emissive={getAtomColor(i)}
+              emissiveIntensity={0.3}
+              metalness={0.5}
+              roughness={0.3}
+            />
           </mesh>
         ))}
       </group>
-
-      {/* Legend */}
-      <mesh position={[-3, 2.5, 0]}>
-        <sphereGeometry args={[0.2, 8, 8]} />
-        <meshBasicMaterial color="#a855f7" />
-      </mesh>
-      <mesh position={[-3, 2.5, 0]}>
-        <sphereGeometry args={[0.08, 8, 8]} />
-        <meshBasicMaterial color="#ec4899" />
-      </mesh>
 
       <gridHelper args={[12, 24, "#1a1a3e", "#1a1a3e"]} position={[0, -3, 0]} />
     </>

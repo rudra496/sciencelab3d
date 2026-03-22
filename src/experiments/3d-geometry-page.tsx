@@ -27,6 +27,8 @@ export default function Geometry3DPage() {
   const [shapeType, setShapeType] = useState<typeof SHAPES[number]>("cube");
   const [rotationSpeed, setRotationSpeed] = useState(0.5);
   const [wireframe, setWireframe] = useState(false);
+  const [showVertices, setShowVertices] = useState(true);
+  const [showEdges, setShowEdges] = useState(true);
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
   const handleReset = () => {
@@ -78,7 +80,35 @@ export default function Geometry3DPage() {
             className="w-4 h-4 rounded accent-blue-500"
           />
         </label>
+        <label className="flex items-center justify-between text-sm text-gray-700 cursor-pointer py-2 px-3 bg-gray-100/50 rounded-lg border border-gray-300/50">
+          <span>Show Vertices</span>
+          <input
+            type="checkbox"
+            checked={showVertices}
+            onChange={(e) => setShowVertices(e.target.checked)}
+            className="w-4 h-4 rounded accent-blue-500"
+          />
+        </label>
+        <label className="flex items-center justify-between text-sm text-gray-700 cursor-pointer py-2 px-3 bg-gray-100/50 rounded-lg border border-gray-300/50">
+          <span>Show Edges</span>
+          <input
+            type="checkbox"
+            checked={showEdges}
+            onChange={(e) => setShowEdges(e.target.checked)}
+            className="w-4 h-4 rounded accent-blue-500"
+          />
+        </label>
       </ControlGroup>
+
+      <div className="bg-blue-50/50 rounded-lg p-3 border border-blue-200/50">
+        <div className="text-xs text-gray-600 mb-2 font-medium">Euler's Formula</div>
+        <div className="text-xs text-gray-500 font-mono">
+          V - E + F = 2
+        </div>
+        <div className="text-xs text-gray-500 mt-1">
+          Vertices - Edges + Faces = χ
+        </div>
+      </div>
 
       <button
         onClick={() => router.push("/experiments/3d-geometry/details")}
@@ -102,7 +132,7 @@ export default function Geometry3DPage() {
       />
       <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
         <div className="text-center font-mono text-blue-400 text-sm">
-          Euler: V - E + F = {data.eulerCharacteristic}
+          {data.vertices} - {data.edges} + {data.faces} = {data.eulerCharacteristic}
         </div>
       </div>
     </>
@@ -127,6 +157,8 @@ export default function Geometry3DPage() {
           shapeType={shapeType}
           rotationSpeed={rotationSpeed}
           wireframe={wireframe}
+          showVertices={showVertices}
+          showEdges={showEdges}
           isPlaying={isPlaying}
         />
       </ExperimentContainer>

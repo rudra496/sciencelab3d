@@ -1,15 +1,16 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
 import { Line } from "@react-three/drei";
+import * as THREE from "three";
 
 export interface PeriodicTrendsData {
   selectedElement: string;
   atomicNumber: number;
   atomicMass: number;
-  trend: string;
+  trendValue: number;
+  trendName: string;
 }
 
 export interface PeriodicTrendsSceneProps {
@@ -20,7 +21,7 @@ export interface PeriodicTrendsSceneProps {
   onDataChange?: (data: PeriodicTrendsData) => void;
 }
 
-// Simplified periodic table data
+// Simplified periodic table data with more elements
 const ELEMENTS = [
   { symbol: "H", number: 1, mass: 1.008, group: 1, period: 1, radius: 0.53, en: 2.20, ionization: 13.6 },
   { symbol: "He", number: 2, mass: 4.003, group: 18, period: 1, radius: 0.31, en: 0.00, ionization: 24.6 },
@@ -40,10 +41,12 @@ const ELEMENTS = [
   { symbol: "S", number: 16, mass: 32.07, group: 16, period: 3, radius: 0.88, en: 2.58, ionization: 10.4 },
   { symbol: "Cl", number: 17, mass: 35.45, group: 17, period: 3, radius: 0.79, en: 3.16, ionization: 12.9 },
   { symbol: "Ar", number: 18, mass: 39.95, group: 18, period: 3, radius: 0.71, en: 0.00, ionization: 15.8 },
+  { symbol: "K", number: 19, mass: 39.10, group: 1, period: 4, radius: 2.43, en: 0.82, ionization: 4.34 },
+  { symbol: "Ca", number: 20, mass: 40.08, group: 2, period: 4, radius: 1.94, en: 1.00, ionization: 6.11 },
 ];
 
 /**
- * Periodic Trends scene component
+ * Periodic Trends scene component - Performance optimized
  * Interactive 3D periodic table with trend visualizations
  */
 export function PeriodicTrendsSceneComponent({
@@ -54,40 +57,120 @@ export function PeriodicTrendsSceneComponent({
   onDataChange
 }: PeriodicTrendsSceneProps) {
   const groupRef = useRef<THREE.Group>(null);
+
+  // Performance refs - physics state updated every frame
   const timeRef = useRef(0);
+  const frameCountRef = useRef(0);
+  const selectedElementRef = useRef(ELEMENTS[5]); // Carbon
+
+  // React state - updated only every 8 frames
+  const [data, setData] = useState<PeriodicTrendsData>({
+    selectedElement: "C",
+    atomicNumber: 6,
+    atomicMass: 12.01,
+    trendValue: 0.67,
+    trendName: "atomicRadius",
+  });
 
   // Get value based on trend type
   const getTrendValue = (element: typeof ELEMENTS[0]) => {
     switch (trendType) {
       case "atomicRadius": return element.radius;
-      case "electronegativity": return element.en;
+      case "electronegativity": return element.en || 0;
       case "ionization": return element.ionization;
       default: return element.radius;
     }
   };
 
-  useEffect(() => {
-    onDataChange?.({
-      selectedElement: "C",
-      atomicNumber: 6,
-      atomicMass: 12.01,
-      trend: trendType,
+  // Get trend name for display
+  const getTrendName = () => {
+    switch (trendType) {
+      case "atomicRadius": return "Atomic Radius (pm)";
+      case "electronegativity": return "Electronegativity (Pauling)";
+      case "ionization": return "Ionization Energy (eV)";
+      default: return "Atomic Radius";
+    }
+  };
+
+  // Get element color based on category
+  const getElementColor = (element: typeof ELEMENTS[0]) => {
+    if (element.group === 1) return "#f97316"; // Alkali metals
+    if (element.group === 2) return "#fbbf24"; // Alkaline earth
+    if (element.group >= 13 && element.group <= 17) return "#22c55e"; // Nonmetals
+    if (element.group === 18) return "#8b5cf6"; // Noble gases
+    return "#94a3b8"; // Other
+  };
+
+  // Generate vertical lines for 3D view using Line from drei
+  const verticalLines = useMemo(() => {
+    if (!view3D) return [];
+
+    return ELEMENTS.map((element) => {
+      const x = (element.group - 9) * 1.2;
+      const y = (3.5 - element.period) * 1.2;
+      const z = getTrendValue(element) * 0.3;
+      const color = getElementColor(element);
+
+      return (
+        <Line
+          key={`line-${element.symbol}`}
+          points={[[x, y, z], [x, y, 0]]}
+          color={color}
+          lineWidth={1}
+          opacity={0.4}
+          transparent
+        />
+      );
     });
-  }, [trendType, onDataChange]);
+  }, [view3D, trendType]);
 
   useFrame((_, delta) => {
     if (!isPlaying) return;
+
     timeRef.current += delta;
+
     if (groupRef.current && view3D) {
       groupRef.current.rotation.y += delta * rotationSpeed * 0.2;
       groupRef.current.rotation.x = Math.sin(timeRef.current * 0.3) * 0.15;
     }
+
+    frameCountRef.current++;
+
+    // Update React state only every 8 frames
+    if (frameCountRef.current % 8 === 0) {
+      const element = selectedElementRef.current;
+      const newData: PeriodicTrendsData = {
+        selectedElement: element.symbol,
+        atomicNumber: element.number,
+        atomicMass: element.mass,
+        trendValue: getTrendValue(element),
+        trendName: getTrendName(),
+      };
+
+      setData(newData);
+      onDataChange?.(newData);
+    }
   });
+
+  // Update data when trend type changes
+  useEffect(() => {
+    const element = selectedElementRef.current;
+    const newData: PeriodicTrendsData = {
+      selectedElement: element.symbol,
+      atomicNumber: element.number,
+      atomicMass: element.mass,
+      trendValue: getTrendValue(element),
+      trendName: getTrendName(),
+    };
+
+    setData(newData);
+    onDataChange?.(newData);
+  }, [trendType, onDataChange]);
 
   return (
     <>
       <ambientLight intensity={0.5} />
-      <pointLight position={[10, 15, 10]} intensity={1.5} />
+      <pointLight position={[10, 15, 10]} intensity={1.5} castShadow />
       <pointLight position={[-10, 5, -10]} intensity={0.5} color="#06b6d4" />
 
       <group ref={groupRef}>
@@ -95,33 +178,42 @@ export function PeriodicTrendsSceneComponent({
           const x = (element.group - 9) * 1.2;
           const y = (3.5 - element.period) * 1.2;
           const z = view3D ? getTrendValue(element) * 0.3 : 0;
-          const size = 0.3 + (getTrendValue(element) / 5) * 0.2;
-
-          // Color based on element category
-          let color = "#94a3b8";
-          if (element.group === 1) color = "#f97316"; // Alkali metals
-          else if (element.group === 2) color = "#fbbf24"; // Alkaline earth
-          else if (element.group >= 13 && element.group <= 18) color = "#22c55e"; // Nonmetals
-          else if (element.group === 18) color = "#8b5cf6"; // Noble gases
+          const baseSize = 0.25;
+          const trendValue = getTrendValue(element);
+          const size = baseSize + (trendValue / 5) * 0.15;
+          const color = getElementColor(element);
 
           return (
             <group key={element.symbol} position={[x, y, z]}>
+              {/* Element sphere */}
               <mesh>
                 <sphereGeometry args={[size, 16, 16]} />
                 <meshStandardMaterial
                   color={color}
                   emissive={color}
-                  emissiveIntensity={0.2}
+                  emissiveIntensity={0.3}
                   metalness={0.5}
                   roughness={0.3}
                 />
               </mesh>
-              {view3D && (
-                <Line points={[[x, y, z], [x, y, 0]]} color={color} lineWidth={2} transparent opacity={0.5} />
+
+              {/* Glow effect for selected element */}
+              {element.symbol === selectedElementRef.current.symbol && (
+                <mesh>
+                  <sphereGeometry args={[size * 1.3, 16, 16]} />
+                  <meshBasicMaterial
+                    color={color}
+                    transparent
+                    opacity={0.3}
+                  />
+                </mesh>
               )}
             </group>
           );
         })}
+
+        {/* Vertical lines for 3D view */}
+        {verticalLines}
       </group>
 
       {/* Grid plane */}
@@ -132,10 +224,10 @@ export function PeriodicTrendsSceneComponent({
 
       <gridHelper args={[20, 20, "#1a1a3e", "#1a1a3e"]} position={[0, 0, -0.6]} />
 
-      {/* Labels */}
+      {/* Trend indicator */}
       <mesh position={[0, 4, 0]}>
-        <planeGeometry args={[6, 0.6]} />
-        <meshBasicMaterial color="#06b6d4" transparent opacity={0.8} />
+        <sphereGeometry args={[0.15, 16, 16]} />
+        <meshBasicMaterial color="#06b6d4" />
       </mesh>
     </>
   );

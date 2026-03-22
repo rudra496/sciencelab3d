@@ -47,7 +47,7 @@ export default function PeriodicTrendsPage() {
               className={`py-2 px-3 text-sm rounded-lg transition-all capitalize ${
                 trendType === trend
                   ? "bg-cyan-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  : "bg-gray-200/50 text-gray-700 hover:bg-gray-300"
               }`}
             >
               {trend === "atomicRadius" && "Atomic Radius"}
@@ -92,15 +92,13 @@ export default function PeriodicTrendsPage() {
           element: { value: 0, unit: data.selectedElement, color: "#06b6d4", decimals: 0 },
           atomicNumber: { value: data.atomicNumber, unit: "Z", color: "#0891b2", decimals: 0 },
           atomicMass: { value: data.atomicMass, unit: "amu", color: "#0e7490", decimals: 2 },
+          trendValue: { value: data.trendValue, unit: "", color: "#22d3ee", decimals: 2 },
         }}
         columns={1}
       />
       <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
-        <div className="text-center font-mono text-cyan-400 text-sm">
-          Trend: {trendType === "atomicRadius" && "Atomic Radius"}
-          {trendType === "electronegativity" && "Electronegativity"}
-          {trendType === "ionization" && "Ionization Energy"}
-        </div>
+        <div className="text-xs text-gray-400 mb-1">Trend</div>
+        <div className="text-cyan-400 text-sm font-medium">{data.trendName}</div>
       </div>
     </>
   ) : (
@@ -128,13 +126,25 @@ export default function PeriodicTrendsPage() {
         />
       </ExperimentContainer>
 
-      <SimulationController isPlaying={isPlaying} onPlayPause={handlePlayPause} onReset={handleReset} speed={simulationSpeed} onSpeedChange={setSimulationSpeed} />
+      <SimulationController
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+        onReset={handleReset}
+        speed={simulationSpeed}
+        onSpeedChange={setSimulationSpeed}
+      />
 
-      <FloatingControlPanel title="⚙️ Periodic Table Settings" initialPosition={{ x: 20, y: 80 }}>
+      <FloatingControlPanel
+        title="⚙️ Periodic Table Settings"
+        initialPosition={{ x: 20, y: 80 }}
+      >
         {parameterControls}
       </FloatingControlPanel>
 
-      <DataPanel isVisible={showDataPanel} onToggle={() => setShowDataPanel(!showDataPanel)}>
+      <DataPanel
+        isVisible={showDataPanel}
+        onToggle={() => setShowDataPanel(!showDataPanel)}
+      >
         {dataPanelContent}
       </DataPanel>
     </>

@@ -1,110 +1,151 @@
 "use client";
 
-import { useRef, useMemo, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Line } from "@react-three/drei";
 import * as THREE from "three";
-import {
-  calculateSnellsLaw,
-  calculateCriticalAngle,
-  calculateReflectance,
-  calculateTransmittance,
-} from "@/utils/physics";
+import { Text } from "@react-three/drei";
 
 interface RefractionSceneProps {
   onDataChange?: (data: RefractionData) => void;
-  incidentAngle?: number;
-  n1?: number; // Refractive index of medium 1
-  n2?: number; // Refractive index of medium 2
+  incidentAngle?: number; // degrees
+  n2?: number; // refractive index of medium 2 (medium 1 is always air = 1.0)
   showNormal?: boolean;
   showAngles?: boolean;
-  rayIntensity?: number;
+  resetTrigger?: number;
 }
 
 export interface RefractionData {
   incidentAngle: number;
-  refractedAngle: number;
   reflectedAngle: number;
-  criticalAngle: number;
-  reflectance: number;
-  transmittance: number;
-  isTIR: boolean;
+  refractedAngle: number;
   n1: number;
   n2: number;
+  criticalAngle: number;
+  isTIR: boolean;
 }
 
 /**
  * World-class Refraction & Reflection Simulation
+ *
+ * Physics: Uses refs for all state, updates React state only every 8 frames.
+ * Shows Snell's law: n1*sin(theta1) = n2*sin(theta2)
+ * Medium 1 (top) is always air (n1 = 1.0)
+ * Medium 2 (bottom) has adjustable refractive index (n2)
  */
 export function RefractionSceneComponent({
   onDataChange,
   incidentAngle = 45,
-  n1 = 1.0,
   n2 = 1.5,
   showNormal = true,
   showAngles = true,
-  rayIntensity = 1,
+  resetTrigger,
 }: RefractionSceneProps) {
-  const laserRef = useRef<THREE.Group>(null);
-  const incidentRayRef = useRef<THREE.Line>(null);
-  const refractedRayRef = useRef<THREE.Line>(null);
-  const reflectedRayRef = useRef<THREE.Line>(null);
+  // === REFS FOR ALL PHYSICS STATE ===
+  const frameCountRef = useRef(0);
+  const incidentAngleRef = useRef(incidentAngle);
+  const n2Ref = useRef(n2);
+  const n1 = 1.0; // Medium 1 is always air
 
-  const [data, setData] = useState<RefractionData>(() => {
-    const thetaI = (incidentAngle * Math.PI) / 180;
-    const thetaR = calculateSnellsLaw(thetaI, n1, n2);
-    const criticalAngle = calculateCriticalAngle(n1, n2);
-    const isTIR = thetaR === null || Number.isNaN(thetaR) || thetaR > Math.PI / 2;
-    const reflectance = calculateReflectance(n1, n2, thetaI);
-    const transmittance = calculateTransmittance(n1, n2, thetaI);
+  // Sync refs with props
+  useEffect(() => {
+    incidentAngleRef.current = incidentAngle;
+  }, [incidentAngle]);
 
-    return {
-      incidentAngle,
-      refractedAngle: thetaR === null || Number.isNaN(thetaR) ? 0 : (thetaR * 180) / Math.PI,
-      reflectedAngle: incidentAngle,
-      criticalAngle: criticalAngle === null || Number.isNaN(criticalAngle) ? 90 : (criticalAngle * 180) / Math.PI,
-      reflectance,
-      transmittance,
-      isTIR,
-      n1,
-      n2,
-    };
+  useEffect(() => {
+    n2Ref.current = n2;
+  }, [n2]);
+
+  // Reset handler
+  useEffect(() => {
+    if (resetTrigger !== undefined) {
+      frameCountRef.current = 0;
+    }
+  }, [resetTrigger]);
+
+  // React state for display (updated only every 8 frames)
+  const [data, setData] = useState<RefractionData>({
+    incidentAngle,
+    reflectedAngle: incidentAngle,
+    refractedAngle: 0,
+    n1,
+    n2,
+    criticalAngle: 0,
+    isTIR: false,
   });
 
-  // Recalculate when parameters change
-  useEffect(() => {
-    const thetaI = (incidentAngle * Math.PI) / 180;
-    const thetaRefracted = calculateSnellsLaw(thetaI, n1, n2);
-    const criticalAngle = calculateCriticalAngle(n1, n2);
-    const isTIR = thetaRefracted === null || Number.isNaN(thetaRefracted) || thetaRefracted > Math.PI / 2;
-    const reflectance = calculateReflectance(n1, n2, thetaI);
-    const transmittance = calculateTransmittance(n1, n2, thetaI);
+  useFrame(() => {
+    frameCountRef.current++;
 
-    const newData: RefractionData = {
-      incidentAngle,
-      refractedAngle: thetaRefracted === null || Number.isNaN(thetaRefracted) ? 0 : (thetaRefracted * 180) / Math.PI,
-      reflectedAngle: incidentAngle,
-      criticalAngle: criticalAngle === null || Number.isNaN(criticalAngle) ? 90 : (criticalAngle * 180) / Math.PI,
-      reflectance,
-      transmittance,
-      isTIR,
-      n1,
-      n2,
-    };
+    // === UPDATE REACT STATE EVERY 8 FRAMES ===
+    if (frameCountRef.current % 8 === 0) {
+      const thetaI = (incidentAngleRef.current * Math.PI) / 180;
+      const n1_val = n1;
+      const n2_val = n2Ref.current;
 
-    setData(newData);
-    onDataChange?.(newData);
-  }, [incidentAngle, n1, n2, onDataChange]);
+      // Snell's Law: n1 * sin(theta1) = n2 * sin(theta2)
+      // sin(theta2) = (n1 / n2) * sin(theta1)
+      const sinTheta2 = (n1_val / n2_val) * Math.sin(thetaI);
 
-  // Ray calculations
-  const thetaI = (incidentAngle * Math.PI) / 180;
-  const thetaRefracted = calculateSnellsLaw(thetaI, n1, n2);
-  const isTIR = thetaRefracted === null || Number.isNaN(thetaRefracted) || thetaRefracted > Math.PI / 2;
+      let theta2: number | null = null;
+      let isTIR = false;
 
-  const rayLength = 10;
+      if (Math.abs(sinTheta2) > 1) {
+        // Total internal reflection
+        isTIR = true;
+        theta2 = null;
+      } else {
+        theta2 = Math.asin(sinTheta2);
+      }
+
+      // Critical angle: sin(theta_c) = n2 / n1 (when n1 > n2)
+      let criticalAngle: number | null = null;
+      if (n1_val > n2_val) {
+        const sinCritical = n2_val / n1_val;
+        criticalAngle = Math.asin(sinCritical);
+      }
+
+      const newData: RefractionData = {
+        incidentAngle: incidentAngleRef.current,
+        reflectedAngle: incidentAngleRef.current, // angle of reflection = angle of incidence
+        refractedAngle: theta2 !== null ? (theta2 * 180) / Math.PI : 0,
+        n1: n1_val,
+        n2: n2_val,
+        criticalAngle: criticalAngle !== null ? (criticalAngle * 180) / Math.PI : 90,
+        isTIR,
+      };
+
+      setData(newData);
+      onDataChange?.(newData);
+    }
+  });
+
+  // === RAY CALCULATIONS (use current ref values) ===
+  const thetaI = (incidentAngleRef.current * Math.PI) / 180;
+  const n2_val = n2Ref.current;
+
+  // Snell's Law calculation
+  const sinTheta2 = (n1 / n2_val) * Math.sin(thetaI);
+  let theta2: number | null = null;
+  let isTIR = false;
+
+  if (Math.abs(sinTheta2) > 1) {
+    isTIR = true;
+    theta2 = null;
+  } else {
+    theta2 = Math.asin(sinTheta2);
+  }
+
+  // Critical angle calculation
+  let criticalAngle: number | null = null;
+  if (n1 > n2_val) {
+    criticalAngle = Math.asin(n2_val / n1);
+  }
+
+  const rayLength = 12;
   const interfaceY = 0;
 
-  // Incident ray (coming from top-left)
+  // Incident ray (from top-left)
   const incidentStart = new THREE.Vector3(
     -Math.sin(thetaI) * rayLength,
     Math.cos(thetaI) * rayLength,
@@ -112,221 +153,293 @@ export function RefractionSceneComponent({
   );
   const incidentEnd = new THREE.Vector3(0, interfaceY, 0);
 
-  // Reflected ray
+  // Reflected ray (goes to top-right)
   const reflectedEnd = new THREE.Vector3(
     Math.sin(thetaI) * rayLength,
     Math.cos(thetaI) * rayLength,
     0
   );
 
-  // Refracted ray (goes into bottom-right)
+  // Refracted ray (goes to bottom-right, unless TIR)
   const refractedEnd = isTIR
     ? new THREE.Vector3(0, 0, 0)
     : new THREE.Vector3(
-        Math.sin(thetaRefracted || 0) * rayLength,
-        -Math.cos(thetaRefracted || 0) * rayLength,
+        Math.sin(theta2 || 0) * rayLength,
+        -Math.cos(theta2 || 0) * rayLength,
         0
       );
 
+  // Get medium name based on refractive index
+  const getMediumName = (n: number): string => {
+    if (n <= 1.01) return "Air";
+    if (n <= 1.35) return "Water";
+    if (n <= 1.6) return "Glass";
+    if (n <= 1.8) return "Oil";
+    return "Diamond";
+  };
+
+  const medium1Name = "Air";
+  const medium2Name = getMediumName(n2_val);
+
   return (
     <group>
-      {/* Medium 1 (top - air/vacuum) */}
-      <mesh position={[0, 8, -2]} receiveShadow>
-        <boxGeometry args={[40, 16, 4]} />
+      {/* === BACKGROUND === */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -15, -2]} receiveShadow>
+        <planeGeometry args={[60, 40]} />
+        <meshStandardMaterial color="#050510" roughness={0.98} />
+      </mesh>
+      <gridHelper args={[60, 60, "#1a1a3e", "#0a0a1e"]} position={[0, -14.99, -2]} />
+
+      {/* === MEDIUM 1 (top) - AIR === */}
+      <mesh position={[0, 8, -1]} receiveShadow>
+        <boxGeometry args={[50, 16, 2]} />
         <meshStandardMaterial
-          color="#e0f7fa"
+          color="#e0f2fe"
           transparent
-          opacity={0.1}
+          opacity={0.08}
           roughness={0.1}
           metalness={0}
         />
       </mesh>
 
-      {/* Medium 2 (bottom - glass/water) */}
-      <mesh position={[0, -8, -2]} receiveShadow>
-        <boxGeometry args={[40, 16, 4]} />
+      {/* === MEDIUM 2 (bottom) - GLASS/WATER/DIAMOND === */}
+      <mesh position={[0, -8, -1]} receiveShadow>
+        <boxGeometry args={[50, 16, 2]} />
         <meshStandardMaterial
-          color="#0277bd"
+          color={n2_val < 1.4 ? "#0369a1" : n2_val < 1.7 ? "#1e40af" : "#5b21b6"}
           transparent
-          opacity={0.2}
+          opacity={0.15}
           roughness={0.1}
           metalness={0.1}
         />
       </mesh>
 
-      {/* Interface surface */}
-      <mesh position={[0, 0, -0.1]} receiveShadow>
-        <planeGeometry args={[40, 0.2]} />
-        <meshStandardMaterial color="#ffffff" transparent opacity={0.3} />
-      </mesh>
+      {/* === INTERFACE LINE (horizontal) === */}
+      <Line
+        points={[[-25, 0, 0.1], [25, 0, 0.1]]}
+        color="#ffffff"
+        lineWidth={2}
+      />
 
-      {/* Normal line */}
+      {/* === NORMAL LINE (vertical, dashed) === */}
       {showNormal && (
         <Line
-          points={[[0, -10, 0.1], [0, 10, 0.1]]}
-          color="#666"
+          points={[[0, -12, 0.1], [0, 12, 0.1]]}
+          color="#888888"
           lineWidth={1}
           dashed
           dashSize={0.5}
           gapSize={0.3}
-          opacity={0.5}
+          opacity={0.6}
           transparent
         />
       )}
 
-      {/* Incident ray */}
+      {/* === INCIDENT RAY (white) === */}
       <Line
-        points={[[incidentStart.x, incidentStart.y, 0], [incidentEnd.x, incidentEnd.y, 0]]}
-        color="#ff0000"
-        lineWidth={3}
+        points={[
+          [incidentStart.x, incidentStart.y, 0.2],
+          [incidentEnd.x, incidentEnd.y, 0.2]
+        ]}
+        color="#ffffff"
+        lineWidth={4}
       />
-
       {/* Incident ray glow */}
       <Line
-        points={[[incidentStart.x, incidentStart.y, 0], [incidentEnd.x, incidentEnd.y, 0]]}
-        color="#ff0000"
-        lineWidth={6}
+        points={[
+          [incidentStart.x, incidentStart.y, 0.2],
+          [incidentEnd.x, incidentEnd.y, 0.2]
+        ]}
+        color="#ffffff"
+        lineWidth={8}
         opacity={0.3}
         transparent
       />
 
-      {/* Reflected ray */}
+      {/* === REFLECTED RAY (yellow) === */}
       <Line
-        points={[[incidentEnd.x, incidentEnd.y, 0], [reflectedEnd.x, reflectedEnd.y, 0]]}
-        color="#00ff00"
-        lineWidth={2 * data.reflectance}
-        opacity={data.reflectance}
+        points={[
+          [incidentEnd.x, incidentEnd.y, 0.2],
+          [reflectedEnd.x, reflectedEnd.y, 0.2]
+        ]}
+        color="#fbbf24"
+        lineWidth={3}
+      />
+      {/* Reflected ray glow */}
+      <Line
+        points={[
+          [incidentEnd.x, incidentEnd.y, 0.2],
+          [reflectedEnd.x, reflectedEnd.y, 0.2]
+        ]}
+        color="#fbbf24"
+        lineWidth={6}
+        opacity={0.25}
+        transparent
       />
 
-      {/* Refracted ray */}
+      {/* === REFRACTED RAY (cyan) - only if no TIR === */}
       {!isTIR && (
         <>
           <Line
-            points={[[incidentEnd.x, incidentEnd.y, 0], [refractedEnd.x, refractedEnd.y, 0]]}
-            color="#0000ff"
-            lineWidth={3 * data.transmittance}
-            opacity={data.transmittance}
+            points={[
+              [incidentEnd.x, incidentEnd.y, 0.2],
+              [refractedEnd.x, refractedEnd.y, 0.2]
+            ]}
+            color="#06b6d4"
+            lineWidth={3}
           />
           {/* Refracted ray glow */}
           <Line
-            points={[[incidentEnd.x, incidentEnd.y, 0], [refractedEnd.x, refractedEnd.y, 0]]}
-            color="#0000ff"
-            lineWidth={6 * data.transmittance}
-            opacity={0.3 * data.transmittance}
+            points={[
+              [incidentEnd.x, incidentEnd.y, 0.2],
+              [refractedEnd.x, refractedEnd.y, 0.2]
+            ]}
+            color="#06b6d4"
+            lineWidth={6}
+            opacity={0.25}
             transparent
           />
         </>
       )}
 
-      {/* Angle arcs */}
+      {/* === ANGLE ARCS === */}
       {showAngles && (
         <>
-          {/* Incident angle arc */}
-          <mesh rotation={[0, 0, -thetaI]}>
-            <ringGeometry args={[2, 2.1, 32, 0, Math.PI / 2 - thetaI, Math.PI / 2]} />
-            <meshBasicMaterial color="#ff0000" side={THREE.DoubleSide} />
-          </mesh>
-          {/* Reflected angle arc */}
-          <mesh rotation={[0, 0, thetaI]}>
-            <ringGeometry args={[2, 2.1, 32, 0, Math.PI / 2 - thetaI, Math.PI / 2]} />
-            <meshBasicMaterial color="#00ff00" side={THREE.DoubleSide} />
-          </mesh>
-          {/* Refracted angle arc */}
-          {!isTIR && (
-            <mesh rotation={[0, 0, Math.PI + thetaRefracted]}>
-              <ringGeometry args={[2, 2.1, 32, 0, Math.PI / 2 - (thetaRefracted || 0), Math.PI / 2]} />
-              <meshBasicMaterial color="#0000ff" side={THREE.DoubleSide} />
+          {/* Incident angle arc (white) */}
+          <group rotation={[0, 0, -thetaI]}>
+            <mesh rotation={[0, 0, Math.PI / 2 - thetaI / 2]}>
+              <ringGeometry args={[3, 3.15, 32, 1, 0, thetaI]} />
+              <meshBasicMaterial color="#ffffff" side={THREE.DoubleSide} />
             </mesh>
+          </group>
+
+          {/* Reflected angle arc (yellow) */}
+          <group rotation={[0, 0, thetaI]}>
+            <mesh rotation={[0, 0, Math.PI / 2 - thetaI / 2]}>
+              <ringGeometry args={[3, 3.15, 32, 1, 0, thetaI]} />
+              <meshBasicMaterial color="#fbbf24" side={THREE.DoubleSide} />
+            </mesh>
+          </group>
+
+          {/* Refracted angle arc (cyan) - only if no TIR */}
+          {!isTIR && theta2 !== null && (
+            <group rotation={[0, 0, Math.PI + theta2]}>
+              <mesh rotation={[0, 0, Math.PI / 2 - theta2 / 2]}>
+                <ringGeometry args={[3, 3.15, 32, 1, 0, theta2]} />
+                <meshBasicMaterial color="#06b6d4" side={THREE.DoubleSide} />
+              </mesh>
+            </group>
           )}
         </>
       )}
 
-      {/* Interface line */}
-      <Line
-        points={[[-20, 0, 0.05], [20, 0, 0.05]]}
-        color="#ffffff"
-        lineWidth={2}
-      />
+      {/* === MEDIUM LABELS === */}
+      <Text
+        position={[-18, 6, 1]}
+        fontSize={1.2}
+        color="#94a3b8"
+        anchorX="left"
+        anchorY="middle"
+      >
+        {medium1Name} (n₁ = {n1.toFixed(2)})
+      </Text>
 
-      {/* Laser source */}
+      <Text
+        position={[-18, -6, 1]}
+        fontSize={1.2}
+        color={n2_val < 1.4 ? "#38bdf8" : n2_val < 1.7 ? "#818cf8" : "#c084fc"}
+        anchorX="left"
+        anchorY="middle"
+      >
+        {medium2Name} (n₂ = {n2_val.toFixed(2)})
+      </Text>
+
+      {/* === TIR INDICATOR === */}
+      {isTIR && (
+        <group position={[8, -6, 1]}>
+          <mesh>
+            <planeGeometry args={[10, 2.5]} />
+            <meshBasicMaterial color="#dc2626" transparent opacity={0.9} />
+          </mesh>
+          <Text
+            position={[0, 0, 0.01]}
+            fontSize={0.9}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+          >
+            TOTAL INTERNAL REFLECTION
+          </Text>
+        </group>
+      )}
+
+      {/* === CRITICAL ANGLE INDICATOR (if applicable) === */}
+      {criticalAngle !== null && !isTIR && (
+        <Text
+          position={[12, -6, 1]}
+          fontSize={0.7}
+          color="#fbbf24"
+          anchorX="left"
+          anchorY="middle"
+        >
+          Critical angle: {(criticalAngle * 180 / Math.PI).toFixed(1)}°
+        </Text>
+      )}
+
+      {/* === LIGHT SOURCE === */}
       <mesh position={[incidentStart.x, incidentStart.y, 0]} rotation={[0, 0, thetaI]}>
-        <boxGeometry args={[1.5, 0.8, 0.8]} />
+        <boxGeometry args={[2, 1, 1]} />
         <meshStandardMaterial
-          color="#333"
+          color="#374151"
           metalness={0.8}
           roughness={0.2}
         />
       </mesh>
-      {/* Laser aperture glow */}
+      {/* Light source aperture glow */}
       <mesh position={[incidentStart.x, incidentStart.y, 0]}>
-        <sphereGeometry args={[0.2, 16, 16]} />
-        <meshBasicMaterial color="#ff0000" />
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshBasicMaterial color="#ffffff" />
       </mesh>
 
-      {/* Medium labels */}
-      <mesh position={[-15, 6, 0]}>
-        <planeGeometry args={[6, 1.5]} />
-        <meshBasicMaterial color="#0a0a1a" transparent opacity={0.8} />
-      </mesh>
-      <mesh position={[-15, 6, 0.01]}>
-        <planeGeometry args={[0.8, 0.8]} />
-        <meshBasicMaterial color="#e0f7fa" />
-      </mesh>
-
-      <mesh position={[-15, -6, 0]}>
-        <planeGeometry args={[6, 1.5]} />
-        <meshBasicMaterial color="#0a0a1a" transparent opacity={0.8} />
-      </mesh>
-      <mesh position={[-15, -6, 0.01]}>
-        <planeGeometry args={[0.8, 0.8]} />
-        <meshBasicMaterial color="#0277bd" />
-      </mesh>
-
-      {/* TIR indicator */}
-      {isTIR && (
-        <group position={[8, -6, 0]}>
-          <mesh>
-            <planeGeometry args={[8, 2]} />
-            <meshBasicMaterial color="#ef4444" transparent opacity={0.9} />
-          </mesh>
-          {/* Exclamation */}
-          <mesh position={[0, 0, 0.01]}>
-            <sphereGeometry args={[0.8, 32, 32]} />
-            <meshBasicMaterial color="#ffffff" />
-          </mesh>
-        </group>
-      )}
-
-      {/* Angle indicators */}
+      {/* === ANGLE LABELS === */}
       {showAngles && (
         <>
-          <mesh position={[-4, 3, 0]}>
-            <planeGeometry args={[2, 0.8]} />
-            <meshBasicMaterial color="#0a0a1a" transparent opacity={0.9} />
-          </mesh>
+          {/* Incident angle label */}
+          <Text
+            position={[-5, 4, 0.5]}
+            fontSize={0.7}
+            color="#ffffff"
+            anchorX="center"
+            anchorY="middle"
+          >
+            θᵢ = {incidentAngleRef.current.toFixed(1)}°
+          </Text>
+
+          {/* Reflected angle label */}
+          <Text
+            position={[5, 4, 0.5]}
+            fontSize={0.7}
+            color="#fbbf24"
+            anchorX="center"
+            anchorY="middle"
+          >
+            θᵣ = {incidentAngleRef.current.toFixed(1)}°
+          </Text>
+
+          {/* Refracted angle label (only if no TIR) */}
+          {!isTIR && theta2 !== null && (
+            <Text
+              position={[5, -4, 0.5]}
+              fontSize={0.7}
+              color="#06b6d4"
+              anchorX="center"
+              anchorY="middle"
+            >
+              θₜ = {(theta2 * 180 / Math.PI).toFixed(1)}°
+            </Text>
+          )}
         </>
       )}
-
-      {/* Refractive index displays */}
-      <group position={[15, 6, 0]}>
-        <mesh>
-          <planeGeometry args={[4, 1.5]} />
-          <meshBasicMaterial color="#0a0a1a" transparent opacity={0.9} />
-        </mesh>
-      </group>
-      <group position={[15, -6, 0]}>
-        <mesh>
-          <planeGeometry args={[4, 1.5]} />
-          <meshBasicMaterial color="#0a0a1a" transparent opacity={0.9} />
-        </mesh>
-      </group>
-
-      {/* Grid/floor reference */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -12, -5]} receiveShadow>
-        <planeGeometry args={[50, 30]} />
-        <meshStandardMaterial color="#050510" roughness={0.98} />
-      </mesh>
-      <gridHelper args={[50, 50, "#1a1a3e", "#0a0a1e"]} position={[0, -11.99, -5]} />
     </group>
   );
 }

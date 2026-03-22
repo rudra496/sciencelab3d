@@ -18,13 +18,11 @@ export default function ThermochemistryPage() {
   const [data, setData] = useState<ThermochemistryData | null>(null);
   const [showDataPanel, setShowDataPanel] = useState(true);
 
-  // Simulation
   const [isPlaying, setIsPlaying] = useState(true);
   const [simulationSpeed, setSimulationSpeed] = useState(1);
   const [resetTrigger, setResetTrigger] = useState(0);
   const [progress, setProgress] = useState(0);
 
-  // Physics
   const [reactionType, setReactionType] = useState<"exothermic" | "endothermic">("exothermic");
   const [activationEnergy, setActivationEnergy] = useState(50);
   const [enthalpyChange, setEnthalpyChange] = useState(40);
@@ -38,6 +36,7 @@ export default function ThermochemistryPage() {
       setIsAnimating(true);
     }
   };
+
   const handleReset = () => {
     setResetTrigger((n) => n + 1);
     setIsPlaying(true);
@@ -45,6 +44,7 @@ export default function ThermochemistryPage() {
     setProgress(0);
     setIsAnimating(false);
   };
+
   const handleProgressChange = (newProgress: number) => {
     setProgress(newProgress);
     if (newProgress >= 1) {
@@ -52,7 +52,6 @@ export default function ThermochemistryPage() {
     }
   };
 
-  // === PARAMETER CONTROLS ===
   const parameterControls = (
     <div className="space-y-4">
       <ControlGroup title="Reaction Parameters">
@@ -122,7 +121,6 @@ export default function ThermochemistryPage() {
     </div>
   );
 
-  // === DATA PANEL CONTENT ===
   const dataPanelContent = data ? (
     <>
       <DataGrid
@@ -139,6 +137,12 @@ export default function ThermochemistryPage() {
           <span className="text-gray-400 text-sm">Progress:</span>
           <span className="font-mono text-red-400">
             {Math.round(progress * 100)}%
+          </span>
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-gray-400 text-sm">Temp Change:</span>
+          <span className="font-mono text-red-400">
+            {data.temperatureChange > 0 ? "+" : ""}{data.temperatureChange.toFixed(1)} kJ
           </span>
         </div>
       </div>
