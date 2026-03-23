@@ -27,26 +27,34 @@ export function FloatingControlPanel({
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [position, setPosition] = useState(initialPosition || { x: 20, y: 80 });
+  // Use safe initial state to avoid hydration mismatch; set real position after mount
+  const [position, setPosition] = useState({ x: 20, y: 80 });
+  const [mounted, setMounted] = useState(false);
 
   const dragOffset = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
   const autoCollapseTimeout = useRef<NodeJS.Timeout | undefined>(undefined);
 
-  // Detect mobile
+  // Set position after mount to avoid hydration mismatch with SSR
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (!initialPosition) {
-        setPosition(mobile ? { x: 10, y: 70 } : { x: 20, y: 80 });
-      }
     };
 
     checkMobile();
+    // Apply initial position only on client
+    if (initialPosition) {
+      setPosition(initialPosition);
+    } else {
+      const mobile = window.innerWidth < 768;
+      setPosition(mobile ? { x: 10, y: 70 } : { x: 20, y: 80 });
+    }
+    setMounted(true);
+
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, [initialPosition]);
+  }, []);
 
   // Auto-collapse on mobile after inactivity
   useEffect(() => {
@@ -140,6 +148,8 @@ export function FloatingControlPanel({
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [isDragging, isMobile, isCollapsed, position]);
+
+  if (!mounted) return null;
 
   return (
     <div

@@ -10,8 +10,11 @@ export interface NaturalSelectionData {
   populationCount: number;
   percentGreen: number;
   percentRed: number;
+  percentSmall: number;
+  percentLarge: number;
   averageSize: number;
   percentSurviving: number;
+  environmentPhase: string;
 }
 
 interface NaturalSelectionSceneProps {
@@ -29,8 +32,8 @@ interface Organism {
   id: number;
   position: [number, number, number];
   velocity: [number, number, number];
-  size: number; // 0.3-1.0 (small=fast, big=slow)
-  color: 'green' | 'red'; // green=camouflaged, red=visible
+  size: number; // 0-1 (0=small/fast, 1=big/slow)
+  color: 'green' | 'red'; // green=camouflaged in grass, red=visible
   alive: boolean;
   age: number;
 }
@@ -41,12 +44,14 @@ interface Predator {
   target: number | null;
 }
 
+type EnvironmentPhase = 'grass' | 'dirt' | 'snow';
+
 export default function NaturalSelectionSceneComponent({
   onDataChange,
   isPlaying = true,
   simulationSpeed = 1,
   resetTrigger = 0,
-  mutationRate = 0.1,
+  mutationRate = 0.15,
   predatorSpeed = 1,
   initialPopulation = 40,
   generationSpeed = 1,
@@ -57,10 +62,13 @@ export default function NaturalSelectionSceneComponent({
   // Physics state in refs
   const organismsRef = useRef<Organism[]>([]);
   const predatorRef = useRef<Predator>({ id: 0, position: [0, 0, 0], target: null });
+  const nextIdRef = useRef(0); // Global ID counter to avoid duplicates
   const generationRef = useRef(0);
   const generationTimeRef = useRef(0);
   const generationDataRef = useRef<{ gen: number; green: number; red: number; avgSize: number }[]>([]);
   const timeRef = useRef(0);
+  const environmentPhaseRef = useRef<EnvironmentPhase>('grass');
+  const environmentTimerRef = useRef(0);
 
   // React state for UI updates (throttled)
   const [displayData, setDisplayData] = useState<NaturalSelectionData>({
@@ -68,18 +76,29 @@ export default function NaturalSelectionSceneComponent({
     populationCount: initialPopulation,
     percentGreen: 50,
     percentRed: 50,
-    averageSize: 0.6,
+    percentSmall: 50,
+    percentLarge: 50,
+    averageSize: 0.5,
     percentSurviving: 100,
+    environmentPhase: 'Grassland',
   });
+
+  // Environment colors
+  const environmentColors = {
+    grass: { background: '#1a2e1a', ground: '#15803d', name: 'Grassland', advantage: 'green' },
+    dirt: { background: '#2e251a', ground: '#8B4513', name: 'Dirt Field', advantage: 'red' },
+    snow: { background: '#1a1e2e', ground: '#e0e7ff', name: 'Snowy Area', advantage: 'none' },
+  };
 
   // Initialize population
   useEffect(() => {
     const newOrganisms: Organism[] = [];
+    nextIdRef.current = 0; // Reset ID counter
     for (let i = 0; i < initialPopulation; i++) {
       const isGreen = Math.random() > 0.5;
-      const size = 0.3 + Math.random() * 0.7;
+      const size = Math.random(); // 0-1
       newOrganisms.push({
-        id: i,
+        id: nextIdRef.current++,
         position: [
           (Math.random() - 0.5) * 14,
           0,
@@ -102,19 +121,32 @@ export default function NaturalSelectionSceneComponent({
     generationTimeRef.current = 0;
     generationDataRef.current = [];
     timeRef.current = 0;
+    environmentPhaseRef.current = 'grass';
+    environmentTimerRef.current = 0;
   }, [resetTrigger, initialPopulation]);
 
   // Get organism speed based on size (smaller = faster)
   const getSpeed = useCallback((size: number) => {
-    return 0.02 * (1.2 - size); // Size 0.3 => fast, Size 1.0 => slow
+    return 0.025 * (1 - size * 0.7); // Size 0 => fast, Size 1 => slow
   }, []);
 
-  // Get detection probability (red = more visible, large = more visible)
-  const getVisibility = useCallback((org: Organism) => {
-    let visibility = 0.3;
-    if (org.color === 'red') visibility += 0.5;
-    visibility += org.size * 0.3;
-    return Math.min(1, visibility);
+  // Get detection probability based on color and environment
+  const getVisibility = useCallback((org: Organism, env: EnvironmentPhase): number => {
+    let visibility = 0.2 + org.size * 0.3; // Base visibility + size factor
+
+    // Environment affects color camouflage
+    if (env === 'grass') {
+      if (org.color === 'green') visibility -= 0.4; // Green camouflaged in grass
+      else visibility += 0.3; // Red stands out
+    } else if (env === 'dirt') {
+      if (org.color === 'red') visibility -= 0.3; // Red blends with dirt
+      else visibility += 0.2; // Green stands out
+    } else if (env === 'snow') {
+      // Both visible in snow
+      visibility += 0.1;
+    }
+
+    return Math.max(0.05, Math.min(1, visibility));
   }, []);
 
   useFrame((state, delta) => {
@@ -125,6 +157,17 @@ export default function NaturalSelectionSceneComponent({
 
     const organisms = organismsRef.current;
     const predator = predatorRef.current;
+
+    // Environment changes every 15 seconds
+    environmentTimerRef.current += delta * simulationSpeed;
+    if (environmentTimerRef.current > 15) {
+      environmentTimerRef.current = 0;
+      const phases: EnvironmentPhase[] = ['grass', 'dirt', 'snow'];
+      const currentIndex = phases.indexOf(environmentPhaseRef.current);
+      environmentPhaseRef.current = phases[(currentIndex + 1) % phases.length];
+    }
+
+    const currentEnv = environmentPhaseRef.current;
 
     // Update organisms (Brownian motion with size-based speed)
     organisms.forEach((org) => {
@@ -161,7 +204,7 @@ export default function NaturalSelectionSceneComponent({
       // Find nearest visible target or pick random
       let target = aliveOrgs.find(o => o.id === predator.target);
       if (!target || !target.alive) {
-        const visibleOrgs = aliveOrgs.filter(o => Math.random() < getVisibility(o));
+        const visibleOrgs = aliveOrgs.filter(o => Math.random() < getVisibility(o, currentEnv));
         target = visibleOrgs.length > 0
           ? visibleOrgs[Math.floor(Math.random() * visibleOrgs.length)]
           : aliveOrgs[Math.floor(Math.random() * aliveOrgs.length)];
@@ -172,7 +215,7 @@ export default function NaturalSelectionSceneComponent({
         const dx = target.position[0] - predator.position[0];
         const dz = target.position[2] - predator.position[2];
         const dist = Math.sqrt(dx * dx + dz * dz);
-        const predSpeed = 0.03 * predatorSpeed * simulationSpeed;
+        const predSpeed = 0.035 * predatorSpeed * simulationSpeed;
 
         if (dist > 0.5) {
           predator.position[0] += (dx / dist) * predSpeed;
@@ -205,8 +248,20 @@ export default function NaturalSelectionSceneComponent({
         const parent = survivors[Math.floor(Math.random() * survivors.length)];
         const hasMutation = Math.random() < mutationRate;
 
+        // Mutate size
+        let newSize = parent.size;
+        if (hasMutation) {
+          newSize = Math.max(0, Math.min(1, parent.size + (Math.random() - 0.5) * 0.4));
+        }
+
+        // Mutate color (less likely)
+        let newColor = parent.color;
+        if (hasMutation && Math.random() < 0.3) {
+          newColor = parent.color === 'green' ? 'red' : 'green';
+        }
+
         offspring.push({
-          id: organisms.length + offspring.length,
+          id: nextIdRef.current++,
           position: [
             parent.position[0] + (Math.random() - 0.5) * 2,
             0,
@@ -217,8 +272,8 @@ export default function NaturalSelectionSceneComponent({
             0,
             (Math.random() - 0.5) * 0.02,
           ],
-          size: hasMutation ? Math.max(0.3, Math.min(1, parent.size + (Math.random() - 0.5) * 0.3)) : parent.size,
-          color: hasMutation ? (Math.random() > 0.5 ? 'green' : 'red') : parent.color,
+          size: newSize,
+          color: newColor,
           alive: true,
           age: 0,
         });
@@ -232,16 +287,23 @@ export default function NaturalSelectionSceneComponent({
       const currentOrgs = organismsRef.current.filter(o => o.alive);
       const greenCount = currentOrgs.filter(o => o.color === 'green').length;
       const redCount = currentOrgs.filter(o => o.color === 'red').length;
+      const smallCount = currentOrgs.filter(o => o.size < 0.5).length;
+      const largeCount = currentOrgs.filter(o => o.size >= 0.5).length;
       const avgSize = currentOrgs.reduce((sum, o) => sum + o.size, 0) / currentOrgs.length;
       const surviving = Math.round((currentOrgs.length / initialPopulation) * 100);
+
+      const envInfo = environmentColors[currentEnv];
 
       const newData: NaturalSelectionData = {
         generation: generationRef.current,
         populationCount: currentOrgs.length,
         percentGreen: Math.round((greenCount / currentOrgs.length) * 100),
         percentRed: Math.round((redCount / currentOrgs.length) * 100),
+        percentSmall: Math.round((smallCount / currentOrgs.length) * 100),
+        percentLarge: Math.round((largeCount / currentOrgs.length) * 100),
         averageSize: Math.round(avgSize * 100) / 100,
         percentSurviving: surviving,
+        environmentPhase: envInfo.name,
       };
 
       setDisplayData(newData);
@@ -257,14 +319,14 @@ export default function NaturalSelectionSceneComponent({
     const points: [number, number, number][] = [];
     const maxPop = initialPopulation;
     const xStart = -6;
-    const zStart = -6;
+    const zStart = -5;
 
     data.forEach((d, i) => {
       const x = xStart + i * 0.5;
       // Green line
-      points.push([x, 1, zStart + (d.green / maxPop) * 3]);
+      points.push([x, 0.5, zStart + (d.green / maxPop) * 3]);
       if (i < data.length - 1) {
-        points.push([x + 0.5, 1, zStart + (data[i + 1].green / maxPop) * 3]);
+        points.push([x + 0.5, 0.5, zStart + (data[i + 1].green / maxPop) * 3]);
       }
     });
 
@@ -278,19 +340,22 @@ export default function NaturalSelectionSceneComponent({
     const points: [number, number, number][] = [];
     const maxPop = initialPopulation;
     const xStart = -6;
-    const zStart = -6;
+    const zStart = -5;
 
     data.forEach((d, i) => {
       const x = xStart + i * 0.5;
       // Red line
-      points.push([x, 0.5, zStart + (d.red / maxPop) * 3]);
+      points.push([x, 0, zStart + (d.red / maxPop) * 3]);
       if (i < data.length - 1) {
-        points.push([x + 0.5, 0.5, zStart + (data[i + 1].red / maxPop) * 3]);
+        points.push([x + 0.5, 0, zStart + (data[i + 1].red / maxPop) * 3]);
       }
     });
 
     return points;
   }, [displayData, initialPopulation]);
+
+  const currentEnv = environmentPhaseRef.current;
+  const envInfo = environmentColors[currentEnv];
 
   // Memoized organism rendering
   const organismElements = useMemo(() => {
@@ -298,37 +363,50 @@ export default function NaturalSelectionSceneComponent({
       .filter(o => o.alive)
       .map((org) => (
         <group key={org.id} position={org.position}>
+          {/* Organism body */}
           <mesh>
-            <sphereGeometry args={[org.size * 0.25, 12, 12]} />
+            <sphereGeometry args={[0.15 + org.size * 0.1, 12, 12]} />
             <meshStandardMaterial
               color={org.color === 'green' ? '#22c55e' : '#ef4444'}
               emissive={org.color === 'green' ? '#22c55e' : '#ef4444'}
-              emissiveIntensity={0.3}
+              emissiveIntensity={0.4}
               roughness={0.5}
               metalness={0.3}
             />
           </mesh>
+          {/* Size indicator glow */}
+          {org.size < 0.3 && (
+            <mesh>
+              <sphereGeometry args={[0.2, 8, 8]} />
+              <meshBasicMaterial
+                color="#3b82f6"
+                transparent
+                opacity={0.3}
+                blending={THREE.AdditiveBlending}
+              />
+            </mesh>
+          )}
         </group>
       ));
-  }, [displayData]);
+  }, [displayData, currentEnv]);
 
   return (
     <>
-      <ambientLight intensity={0.6} />
+      <ambientLight intensity={0.5} />
       <directionalLight position={[10, 15, 10]} intensity={0.8} castShadow />
-      <pointLight position={[0, 8, 0]} intensity={0.3} color="#22c55e" />
+      <pointLight position={[0, 8, 0]} intensity={0.3} color={envInfo.ground} />
 
       <OrbitControls enableDamping dampingFactor={0.05} maxPolarAngle={Math.PI / 2.5} />
 
       <group ref={groupRef}>
-        {/* Grass field (green plane) */}
+        {/* Ground with environment-based color */}
         <mesh position={[0, -0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[16, 16]} />
-          <meshStandardMaterial color="#15803d" roughness={0.95} metalness={0.05} />
+          <meshStandardMaterial color={envInfo.ground} roughness={0.95} metalness={0.05} />
         </mesh>
 
-        {/* Grass texture details */}
-        {Array.from({ length: 200 }).map((_, i) => (
+        {/* Environment details (grass/snow/rocks) */}
+        {currentEnv === 'grass' && Array.from({ length: 150 }).map((_, i) => (
           <mesh
             key={i}
             position={[
@@ -338,8 +416,34 @@ export default function NaturalSelectionSceneComponent({
             ]}
             rotation={[0, Math.random() * Math.PI, 0]}
           >
-            <coneGeometry args={[0.02, 0.15, 4]} />
+            <coneGeometry args={[0.02, 0.12, 4]} />
             <meshStandardMaterial color="#16a34a" roughness={0.8} />
+          </mesh>
+        ))}
+        {currentEnv === 'snow' && Array.from({ length: 100 }).map((_, i) => (
+          <mesh
+            key={i}
+            position={[
+              (Math.random() - 0.5) * 15,
+              0.05,
+              (Math.random() - 0.5) * 15,
+            ]}
+          >
+            <sphereGeometry args={[0.08, 6, 6]} />
+            <meshStandardMaterial color="#ffffff" roughness={0.9} />
+          </mesh>
+        ))}
+        {currentEnv === 'dirt' && Array.from({ length: 50 }).map((_, i) => (
+          <mesh
+            key={i}
+            position={[
+              (Math.random() - 0.5) * 15,
+              0,
+              (Math.random() - 0.5) * 15,
+            ]}
+          >
+            <dodecahedronGeometry args={[0.1]} />
+            <meshStandardMaterial color="#654321" roughness={0.9} />
           </mesh>
         ))}
 
@@ -363,11 +467,11 @@ export default function NaturalSelectionSceneComponent({
         </mesh>
 
         {/* Population graph */}
-        <group position={[-5, 3, 5]} rotation={[-Math.PI / 3, 0, 0]}>
+        <group position={[-5, 4, 5]} rotation={[-Math.PI / 3, 0, 0]}>
           {/* Graph background */}
-          <mesh position={[3, 0.5, -1.5]}>
-            <boxGeometry args={[8, 2, 0.1]} />
-            <meshStandardMaterial color="#1f2937" transparent opacity={0.8} />
+          <mesh position={[3, 0.25, -1.5]}>
+            <boxGeometry args={[8, 1.5, 0.1]} />
+            <meshStandardMaterial color="#1f2937" transparent opacity={0.9} />
           </mesh>
 
           {/* Green population line */}
@@ -380,71 +484,108 @@ export default function NaturalSelectionSceneComponent({
             <Line points={redGraphData} color="#ef4444" lineWidth={3} />
           )}
 
-          <Html position={[7, 1.5, -1.5]} distanceFactor={15}>
+          <Html position={[7, 1, -1.5]} distanceFactor={15}>
             <div className="bg-gray-900/90 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
               Population Over Generations
             </div>
           </Html>
         </group>
 
-        {/* Labels and indicators */}
-        <Html position={[0, 3, 0]} distanceFactor={12}>
-          <div className="bg-green-600/90 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg">
-            Generation: {displayData.generation} | Population: {displayData.populationCount}
+        {/* Size histogram */}
+        <group position={[5, 4, 0]} rotation={[-Math.PI / 4, 0, 0]}>
+          <mesh position={[0, 0.5, 0]}>
+            <boxGeometry args={[3, 2, 0.1]} />
+            <meshStandardMaterial color="#1f2937" transparent opacity={0.9} />
+          </mesh>
+          {/* Size bars */}
+          <mesh position={[-0.8, 0.5, 0]}>
+            <boxGeometry args={[0.4, Math.max(0.01, displayData.percentSmall / 50), 0.1]} />
+            <meshStandardMaterial color="#3b82f6" />
+          </mesh>
+          <mesh position={[0.8, 0.5, 0]}>
+            <boxGeometry args={[0.4, Math.max(0.01, displayData.percentLarge / 50), 0.1]} />
+            <meshStandardMaterial color="#f59e0b" />
+          </mesh>
+          <Html position={[0, 1.8, 0]} distanceFactor={12}>
+            <div className="text-xs text-white">Size Distribution</div>
+          </Html>
+        </group>
+
+        {/* Main stats label */}
+        <Html position={[0, 5, 0]} distanceFactor={12}>
+          <div className={`bg-gradient-to-r px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${
+            currentEnv === 'grass' ? 'from-green-600/90 to-green-700/90 text-white' :
+            currentEnv === 'dirt' ? 'from-amber-700/90 to-amber-800/90 text-white' :
+            'from-blue-400/90 to-blue-500/90 text-white'
+          }`}>
+            {envInfo.name} | Generation: {displayData.generation} | Population: {displayData.populationCount}
           </div>
         </Html>
 
-        <Html position={[-6, 2.5, 5]} distanceFactor={12}>
+        {/* Environment indicator */}
+        <Html position={[0, -2.5, 0]} distanceFactor={15}>
+          <div className={`px-4 py-2 rounded-lg text-sm font-bold shadow-lg ${
+            currentEnv === 'grass' ? 'bg-green-600/90 text-white' :
+            currentEnv === 'dirt' ? 'bg-amber-700/90 text-white' :
+            'bg-blue-400/90 text-gray-900'
+          }`}>
+            Environment: {envInfo.name} {currentEnv === 'grass' ? '(🌿 Green Advantage)' : currentEnv === 'dirt' ? '(🟤 Red Advantage)' : '(❄️ Both Visible)'}
+          </div>
+        </Html>
+
+        {/* Trait Distribution */}
+        <Html position={[-6, 3, 4]} distanceFactor={12}>
           <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs space-y-1">
-            <div className="font-bold text-green-400 mb-2">Trait Distribution</div>
+            <div className="font-bold text-green-400 mb-2">Color Traits</div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span>Green (Camouflaged): {displayData.percentGreen}%</span>
+              <span>Green (Camouflaged in grass): {displayData.percentGreen}%</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-red-500"></div>
-              <span>Red (Visible): {displayData.percentRed}%</span>
+              <span>Red (Visible in grass): {displayData.percentRed}%</span>
             </div>
             <div className="mt-2 pt-2 border-t border-gray-700">
-              <div>Avg Size: {displayData.averageSize}</div>
-              <div className="text-xs text-gray-400">Smaller = Faster, Harder to Catch</div>
+              <div className="font-bold text-blue-400 mb-1">Size Traits</div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+                <span>Small (Fast): {displayData.percentSmall}%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                <span>Large (Slow): {displayData.percentLarge}%</span>
+              </div>
             </div>
           </div>
         </Html>
 
-        <Html position={[6, 2, 0]} distanceFactor={12}>
-          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs">
-            <div className="font-bold text-amber-400 mb-2">Selection Pressure</div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-4 h-4" style={{ background: '#dc2626', clipPath: 'polygon(50% 0%, 0% 100%, 100% 100%)' }}></div>
-              <span>Predator Hunts Visible Organisms</span>
+        {/* Selection Pressure Info */}
+        <Html position={[6, 3, 0]} distanceFactor={12}>
+          <div className="bg-gray-900/90 text-white px-3 py-2 rounded text-xs max-w-[200px]">
+            <div className="font-bold text-amber-400 mb-2">How Natural Selection Works</div>
+            <div className="space-y-1 text-gray-300">
+              <div>1. Environment favors certain traits</div>
+              <div>2. Camouflaged organisms survive more</div>
+              <div>3. Small organisms escape faster</div>
+              <div>4. Survivors pass traits to offspring</div>
+              <div>5. Population adapts over generations</div>
             </div>
-            <div className="text-green-400 mt-2">
-              ✓ Camouflaged (green) survives more
-            </div>
-            <div className="text-red-400">
-              ✗ Visible (red) gets eaten more
-            </div>
-            <div className="text-blue-400 mt-2">
-              ⚡ Smaller = Faster escape
+            <div className="mt-2 pt-2 border-t border-gray-700">
+              <div className="text-green-400">✓ Camouflaged = Less visible</div>
+              <div className="text-blue-400">✓ Small = Fast escape</div>
             </div>
           </div>
         </Html>
 
-        {/* Arrow showing selection pressure */}
-        <group position={[2, 1, 2]}>
-          <mesh rotation={[0, 0, Math.PI / 4]}>
-            <coneGeometry args={[0.2, 0.5, 4]} />
-            <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.5} />
-          </mesh>
-          <mesh position={[0, 0.3, 0]} rotation={[0, 0, Math.PI / 4]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.5, 8]} />
-            <meshStandardMaterial color="#fbbf24" />
-          </mesh>
-        </group>
+        {/* Predator indicator */}
+        <Html position={[0, 2.5, -3]} distanceFactor={12}>
+          <div className="bg-red-600/90 text-white px-3 py-1 rounded text-xs">
+            🔴 Predator Hunts Visible Organisms
+          </div>
+        </Html>
 
         {/* Survival rate indicator */}
-        <Html position={[0, -2, 0]} distanceFactor={15}>
+        <Html position={[0, -1.8, 3]} distanceFactor={15}>
           <div className="bg-gray-900/90 text-white px-4 py-2 rounded-lg text-sm">
             Surviving to Next Generation: <span className="font-bold text-yellow-400">{displayData.percentSurviving}%</span>
           </div>

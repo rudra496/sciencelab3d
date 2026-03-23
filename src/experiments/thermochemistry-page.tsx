@@ -20,7 +20,6 @@ export default function ThermochemistryPage() {
   const [resetTrigger, setResetTrigger] = useState(0);
   const [showDataPanel, setShowDataPanel] = useState(true);
 
-  const [reactionType, setReactionType] = useState<'exothermic' | 'endothermic'>('exothermic');
   const [activationEnergy, setActivationEnergy] = useState(50);
   const [energyReleased, setEnergyReleased] = useState(40);
   const [stepMode, setStepMode] = useState(false);
@@ -28,11 +27,10 @@ export default function ThermochemistryPage() {
   const [progress, setProgress] = useState(0);
 
   const [data, setData] = useState<ThermochemistryData>({
-    reactantEnergy: 80,
-    activationEnergy: 50,
-    productEnergy: 40,
-    netEnergyChange: -40,
-    temperatureChange: 0,
+    exothermicTemp: 298,
+    endothermicTemp: 298,
+    exothermicEnergy: 80,
+    endothermicEnergy: 80,
     progress: 0,
     currentStep: 1,
   });
@@ -67,30 +65,12 @@ export default function ThermochemistryPage() {
 
   const parameterControls = (
     <div className="space-y-4">
-      <ControlGroup title="Reaction Type">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => { setReactionType('exothermic'); setCurrentStep(1); setProgress(0); }}
-            className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              reactionType === 'exothermic'
-                ? 'bg-red-600 text-white'
-                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
-            }`}
-          >
-            🔥 Exothermic
-          </button>
-          <button
-            onClick={() => { setReactionType('endothermic'); setCurrentStep(1); setProgress(0); }}
-            className={`py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              reactionType === 'endothermic'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-200/50 text-gray-700 hover:bg-gray-300/50'
-            }`}
-          >
-            ❄️ Endothermic
-          </button>
+      <div className="bg-gradient-to-r from-red-50 to-blue-50 rounded-lg p-3 border border-red-200/50">
+        <div className="text-sm font-semibold text-gray-800 mb-1">Side-by-Side Comparison</div>
+        <div className="text-xs text-gray-600">
+          Comparing exothermic (releases heat) and endothermic (absorbs heat) reactions simultaneously
         </div>
-      </ControlGroup>
+      </div>
 
       <ControlGroup title="Energy Parameters">
         <ControlSlider
@@ -105,13 +85,13 @@ export default function ThermochemistryPage() {
           decimals={0}
         />
         <ControlSlider
-          label="Energy Released/Absorbed"
+          label="Energy Change"
           value={energyReleased}
           unit="kJ/mol"
           min={10}
           max={80}
           step={5}
-          color={reactionType === 'exothermic' ? '#ef4444' : '#3b82f6'}
+          color="#8b5cf6"
           onChange={setEnergyReleased}
           decimals={0}
         />
@@ -166,17 +146,30 @@ export default function ThermochemistryPage() {
     'Activation Energy',
     'Transition State',
     'Products Formed',
-    reactionType === 'exothermic' ? 'Energy Released' : 'Energy Absorbed',
+    'Energy Transferred',
   ];
 
   const dataPanelContent = (
     <>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-red-900/30 rounded-lg p-2 border border-red-500/30">
+          <div className="text-xs text-red-400 mb-1">Exothermic</div>
+          <div className="text-sm font-bold text-red-300">{data.exothermicTemp.toFixed(0)} K</div>
+          <div className="text-xs text-gray-400">-{energyReleased} kJ/mol</div>
+        </div>
+        <div className="bg-blue-900/30 rounded-lg p-2 border border-blue-500/30">
+          <div className="text-xs text-blue-400 mb-1">Endothermic</div>
+          <div className="text-sm font-bold text-blue-300">{data.endothermicTemp.toFixed(0)} K</div>
+          <div className="text-xs text-gray-400">+{energyReleased} kJ/mol</div>
+        </div>
+      </div>
+
       <DataGrid
         data={{
-          reactantEnergy: { value: data.reactantEnergy, unit: 'kJ/mol', color: '#ff6b35', decimals: 0 },
-          productEnergy: { value: data.productEnergy, unit: 'kJ/mol', color: '#06d6a0', decimals: 0 },
-          activationEnergy: { value: data.activationEnergy, unit: 'kJ/mol', color: '#f59e0b', decimals: 0 },
-          netEnergyChange: { value: Math.abs(data.netEnergyChange), unit: 'kJ/mol', color: reactionType === 'exothermic' ? '#ef4444' : '#3b82f6', decimals: 0 },
+          exoTemp: { value: data.exothermicTemp, unit: 'K (exo)', color: '#ef4444', decimals: 0 },
+          endoTemp: { value: data.endothermicTemp, unit: 'K (endo)', color: '#3b82f6', decimals: 0 },
+          exoEnergy: { value: data.exothermicEnergy, unit: 'kJ (exo)', color: '#f59e0b', decimals: 0 },
+          endoEnergy: { value: data.endothermicEnergy, unit: 'kJ (endo)', color: '#8b5cf6', decimals: 0 },
         }}
         columns={2}
       />
@@ -199,12 +192,6 @@ export default function ThermochemistryPage() {
             {stepNames[currentStep - 1] || stepNames[Math.floor(progress * 4.9)]}
           </span>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400 text-sm">Temp Change:</span>
-          <span className={`font-mono ${data.temperatureChange > 0 ? 'text-red-400' : 'text-blue-400'}`}>
-            {data.temperatureChange > 0 ? '+' : ''}{data.temperatureChange.toFixed(1)} K
-          </span>
-        </div>
       </div>
     </>
   );
@@ -213,7 +200,7 @@ export default function ThermochemistryPage() {
     <>
       <ExperimentContainer
         title="Thermochemistry"
-        description={`Energy changes in ${reactionType} reactions`}
+        description="Compare energy changes in exothermic and endothermic reactions"
         cameraPosition={[8, 6, 8]}
         backgroundColor="#050510"
         controls={null}
@@ -222,7 +209,6 @@ export default function ThermochemistryPage() {
         <ThermochemistrySceneComponent
           onDataChange={handleDataChange}
           onProgressChange={handleProgressChange}
-          reactionType={reactionType}
           activationEnergy={activationEnergy}
           energyReleased={energyReleased}
           isPlaying={isPlaying}

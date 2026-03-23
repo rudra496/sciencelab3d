@@ -30,6 +30,7 @@ export default function DiffusionPage() {
     temperature: 298,
     timeElapsed: 0,
     equilibrium: 0,
+    gradientIndex: 0,
   });
 
   const handlePlayPause = useCallback(() => {

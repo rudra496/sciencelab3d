@@ -28,6 +28,9 @@ export default function TrigonometryPage() {
   const [showSin, setShowSin] = useState(true);
   const [showCos, setShowCos] = useState(true);
   const [showTan, setShowTan] = useState(true);
+  const [showCot, setShowCot] = useState(false);
+  const [showSec, setShowSec] = useState(false);
+  const [showCsc, setShowCsc] = useState(false);
   const [showWaves, setShowWaves] = useState(true);
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
@@ -56,11 +59,24 @@ export default function TrigonometryPage() {
 
       <ControlGroup title="Display Options">
         <ControlCheckbox label="Use Radians" checked={useRadians} onChange={setUseRadians} color="#8b5cf6" />
-        <ControlCheckbox label="Show Sin" checked={showSin} onChange={setShowSin} color="#22c55e" />
-        <ControlCheckbox label="Show Cos" checked={showCos} onChange={setShowCos} color="#3b82f6" />
+        <ControlCheckbox label="Show Sin" checked={showSin} onChange={setShowSin} color="#3b82f6" />
+        <ControlCheckbox label="Show Cos" checked={showCos} onChange={setShowCos} color="#22c55e" />
         <ControlCheckbox label="Show Tan" checked={showTan} onChange={setShowTan} color="#ef4444" />
-        <ControlCheckbox label="Show Waves" checked={showWaves} onChange={setShowWaves} color="#a78bfa" />
+        <ControlCheckbox label="Show Cot" checked={showCot} onChange={setShowCot} color="#f97316" />
+        <ControlCheckbox label="Show Sec" checked={showSec} onChange={setShowSec} color="#a855f7" />
+        <ControlCheckbox label="Show Csc" checked={showCsc} onChange={setShowCsc} color="#ec4899" />
+        <ControlCheckbox label="Show Graph" checked={showWaves} onChange={setShowWaves} color="#06b6d4" />
       </ControlGroup>
+
+      <div className="bg-violet-50/50 rounded-lg p-3 border border-violet-200/50">
+        <div className="text-xs text-gray-600 mb-2 font-medium">Trigonometric Relationships</div>
+        <div className="text-xs text-gray-500 space-y-1">
+          <div>• sin²(θ) + cos²(θ) = 1</div>
+          <div>• tan(θ) = sin(θ) / cos(θ)</div>
+          <div>• Click and drag to rotate view</div>
+          <div>• Animation shows wave tracing</div>
+        </div>
+      </div>
 
       <button
         onClick={() => router.push("/experiments/trigonometry/details")}
@@ -103,6 +119,9 @@ export default function TrigonometryPage() {
           <div className="p-2 bg-gray-800/50 rounded-lg">
             <div className="text-xs text-gray-400">Special Angle</div>
             <div className="text-xs font-mono text-green-400">{data.exactValue}</div>
+            <div className="mt-1 text-xs text-gray-400">sin: {data.sinValue}</div>
+            <div className="text-xs text-gray-400">cos: {data.cosValue}</div>
+            <div className="text-xs text-gray-400">tan: {data.tanValue}</div>
           </div>
         )}
 
@@ -123,7 +142,7 @@ export default function TrigonometryPage() {
     <>
       <ExperimentContainer
         title="Trigonometry Explorer"
-        description="Explore the unit circle and trigonometric functions"
+        description="Interactive 3D unit circle with all 6 trig functions, real-time graphing, and special angles reference"
         cameraPosition={[0, 0, 10]}
         backgroundColor="#050510"
         controls={null}
@@ -136,7 +155,10 @@ export default function TrigonometryPage() {
           showSin={showSin}
           showCos={showCos}
           showTan={showTan}
-          showWaves={showWaves}
+          showCot={showCot}
+          showSec={showSec}
+          showCsc={showCsc}
+          showGraph={showWaves}
           animationSpeed={simulationSpeed}
           isPlaying={isPlaying}
         />

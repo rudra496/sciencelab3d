@@ -163,6 +163,7 @@ export function ElectrolysisSceneComponent({
     // Update bubble positions
     for (let i = 0; i < maxBubbles; i++) {
       const bubble = physics.bubbles[i];
+      if (!bubble) continue;
 
       if (bubble.active) {
         const speed = voltage / 6;
@@ -489,19 +490,71 @@ export function ElectrolysisSceneComponent({
         </group>
       )}
 
-      {/* Balanced equation at step 5 */}
-      {step === 5 && (
-        <group position={[0, 5, 0]}>
-          <mesh position={[0, 0, -0.1]}>
-            <planeGeometry args={[6, 0.6]} />
+      {/* Enhanced gas collection visualization - Gas ratios */}
+      {step >= 4 && data.h2Volume > 1 && data.o2Volume > 0.5 && (
+        <group position={[0, 4.5, 0]}>
+          {/* Ratio display panel */}
+          <mesh position={[0, 0, -0.05]}>
+            <planeGeometry args={[4, 0.8]} />
             <meshStandardMaterial
               color="#0a0a1a"
               transparent
-              opacity={0.9}
+              opacity={0.85}
             />
           </mesh>
-          <Text position={[0, 0, 0]} fontSize={0.12} color="#4ade80" anchorX="center">
+          <Text position={[0, 0.15, 0]} fontSize={0.11} color="#ffffff" anchorX="center">
+            Gas Volume Ratio (H₂:O₂)
+          </Text>
+          <Text
+            position={[0, -0.1, 0]}
+            fontSize={0.18}
+            color={(data.h2Volume / Math.max(data.o2Volume, 0.1)) >= 1.8 && (data.h2Volume / Math.max(data.o2Volume, 0.1)) <= 2.2 ? "#4ade80" : "#f87171"}
+            anchorX="center"
+          >
+            {(data.h2Volume / Math.max(data.o2Volume, 0.1)).toFixed(1)}:1
+          </Text>
+          <Text position={[0, -0.3, 0]} fontSize={0.08} color="#94a3b8" anchorX="center">
+            Expected: 2:1 (Faraday's Law)
+          </Text>
+        </group>
+      )}
+
+      {/* Balanced equation at step 5 */}
+      {step === 5 && (
+        <group position={[0, 5.5, 0]}>
+          <mesh position={[0, 0, -0.1]}>
+            <planeGeometry args={[7, 0.7]} />
+            <meshStandardMaterial
+              color="#0a0a1a"
+              transparent
+              opacity={0.92}
+            />
+          </mesh>
+          <Text position={[0, 0.15, 0]} fontSize={0.13} color="#4ade80" anchorX="center">
             2H₂O(l) → 2H₂(g) + O₂(g)
+          </Text>
+          <Text position={[0, -0.15, 0]} fontSize={0.08} color="#94a3b8" anchorX="center">
+            Overall: 2 water molecules → 2 hydrogen + 1 oxygen
+          </Text>
+        </group>
+      )}
+
+      {/* Molecular explanation at step 5 */}
+      {step === 5 && (
+        <group position={[0, -2.2, 3]}>
+          <mesh position={[0, 0, -0.1]}>
+            <planeGeometry args={[5, 1]} />
+            <meshStandardMaterial
+              color="#0a0a1a"
+              transparent
+              opacity={0.85}
+            />
+          </mesh>
+          <Text position={[0, 0.2, 0]} fontSize={0.1} color="#60a5fa" anchorX="center">
+            At Cathode (-): 2H₂O + 2e⁻ → H₂ + 2OH⁻
+          </Text>
+          <Text position={[0, -0.1, 0]} fontSize={0.1} color="#f87171" anchorX="center">
+            At Anode (+): 2H₂O → O₂ + 4H⁺ + 4e⁻
           </Text>
         </group>
       )}

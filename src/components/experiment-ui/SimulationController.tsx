@@ -35,28 +35,34 @@ export function SimulationController({
 }: SimulationControllerProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [mounted, setMounted] = useState(false);
 
   const dragOffset = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Detect mobile
+  // Detect mobile + set position after mount (avoids hydration mismatch)
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (!initialPosition) {
-        setPosition(mobile
-          ? { x: 10, y: window.innerHeight - 80 }
-          : { x: window.innerWidth / 2 - 150, y: window.innerHeight - 80 }
-        );
-      }
     };
 
     checkMobile();
+    if (initialPosition) {
+      setPosition(initialPosition);
+    } else {
+      const mobile = window.innerWidth < 768;
+      setPosition(mobile
+        ? { x: 10, y: window.innerHeight - 80 }
+        : { x: window.innerWidth / 2 - 150, y: window.innerHeight - 80 }
+      );
+    }
+    setMounted(true);
+
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, [initialPosition]);
+  }, []);
 
   // Format time elapsed
   const formatTime = (seconds: number) => {
@@ -136,6 +142,8 @@ export function SimulationController({
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [isDragging, isMobile, position]);
+
+  if (!mounted) return null;
 
   return (
     <div

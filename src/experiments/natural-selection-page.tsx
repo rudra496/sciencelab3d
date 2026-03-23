@@ -27,8 +27,11 @@ export default function NaturalSelectionPage() {
     populationCount: 40,
     percentGreen: 50,
     percentRed: 50,
-    averageSize: 0.6,
+    percentSmall: 50,
+    percentLarge: 50,
+    averageSize: 0.5,
     percentSurviving: 100,
+    environmentPhase: 'Grassland',
   });
 
   const handlePlayPause = useCallback(() => {
@@ -98,7 +101,8 @@ export default function NaturalSelectionPage() {
           <div className="text-xs text-gray-500 space-y-1">
             <div>• Green organisms are camouflaged in grass</div>
             <div>• Red organisms are visible to predators</div>
-            <div>• Smaller organisms move faster</div>
+            <div>• Small organisms move faster</div>
+            <div>• Environment changes every 15 seconds</div>
             <div>• Survivors reproduce with mutations</div>
           </div>
         </div>
@@ -122,7 +126,8 @@ export default function NaturalSelectionPage() {
           population: { value: selectionData.populationCount, unit: "organisms", color: "#34d399", decimals: 0 },
           green: { value: selectionData.percentGreen, unit: "camouflaged", color: "#22c55e", decimals: 0 },
           red: { value: selectionData.percentRed, unit: "visible", color: "#ef4444", decimals: 0 },
-          avgSize: { value: selectionData.averageSize, unit: "size", color: "#3b82f6", decimals: 2 },
+          small: { value: selectionData.percentSmall, unit: "fast", color: "#3b82f6", decimals: 0 },
+          large: { value: selectionData.percentLarge, unit: "slow", color: "#f59e0b", decimals: 0 },
           surviving: { value: selectionData.percentSurviving, unit: "%", color: "#fbbf24", decimals: 0 },
         }}
         columns={2}
@@ -144,7 +149,7 @@ export default function NaturalSelectionPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="Natural Selection"
-        description="Watch evolution in action: camouflaged organisms survive predators and pass on their traits"
+        description="Watch evolution in action: environment changes favor different traits, and survivors pass on their genes"
         cameraPosition={[0, 8, 12]}
         backgroundColor="#0a0a0f"
         controls={null}

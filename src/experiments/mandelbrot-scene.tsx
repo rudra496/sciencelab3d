@@ -19,7 +19,7 @@ export interface MandelbrotSceneProps {
   zoom: number;
   centerX: number;
   centerY: number;
-  colorScheme: "rainbow" | "fire" | "grayscale" | "electric";
+  colorScheme: "rainbow" | "fire" | "grayscale" | "electric" | "ocean";
   isPlaying: boolean;
   onDataChange?: (data: MandelbrotData) => void;
   onCenterChange?: (x: number, y: number) => void;
@@ -44,6 +44,13 @@ uniform int uColorScheme;
 uniform vec2 uResolution;
 
 varying vec2 vUv;
+
+// HSV to RGB conversion (defined BEFORE use)
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
 
 // Smooth coloring using logarithm
 vec3 getColor(float iterations, float maxIter, int scheme) {
@@ -71,7 +78,7 @@ vec3 getColor(float iterations, float maxIter, int scheme) {
     // Grayscale
     float gray = t;
     return vec3(gray, gray, gray);
-  } else {
+  } else if (scheme == 3) {
     // Electric
     float t2 = sin(t * 6.28) * 0.5 + 0.5;
     return vec3(
@@ -79,13 +86,14 @@ vec3 getColor(float iterations, float maxIter, int scheme) {
       0.3 + 0.7 * t * t2,
       0.9 + 0.1 * sin(t * 12.56)
     );
+  } else {
+    // Ocean
+    return vec3(
+      0.0 + t * 0.2,
+      0.3 + t * 0.5,
+      0.6 + t * 0.4
+    );
   }
-}
-
-vec3 hsv2rgb(vec3 c) {
-  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
 void main() {
@@ -172,7 +180,7 @@ export function MandelbrotSceneComponent({
 
   // Color scheme to int mapping
   const colorSchemeInt = useMemo(() => {
-    return { rainbow: 0, fire: 1, grayscale: 2, electric: 3 }[colorScheme] ?? 0;
+    return { rainbow: 0, fire: 1, grayscale: 2, electric: 3, ocean: 4 }[colorScheme] ?? 0;
   }, [colorScheme]);
 
   // Create shader material

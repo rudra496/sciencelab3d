@@ -6,10 +6,6 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 
-/**
- * Component to handle canvas resize events
- * Forces the renderer to update when window size changes
- */
 function CanvasResizeHandler() {
   const { gl, camera } = useThree();
 
@@ -52,19 +48,9 @@ export interface ExperimentContainerProps {
   cameraPosition?: [number, number, number];
   enableFog?: boolean;
   backgroundColor?: string;
-  /** Floating simulation bar — play/pause, reset, speed */
   simulationBar?: SimulationBarProps;
 }
 
-/**
- * PRODUCTION-LEVEL Experiment Container
- * - True fullscreen: fixed inset-0, 100vw × 100vh
- * - Fully responsive: mobile, tablet, desktop
- * - Auto-resize on window resize
- * - Proper z-index layering
- * - Performance optimized
- * - Floating simulation bar for real-time control
- */
 export function ExperimentContainer({
   children,
   title,
@@ -72,9 +58,9 @@ export function ExperimentContainer({
   controls,
   dataPanel,
   details,
-  cameraPosition = [35, 25, 35],
+  cameraPosition = [10, 7, 10],
   enableFog = true,
-  backgroundColor = "#050510",
+  backgroundColor = "#0a0a1e",
   simulationBar,
 }: ExperimentContainerProps) {
   const [showControls, setShowControls] = useState(true);
@@ -88,7 +74,6 @@ export function ExperimentContainer({
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Detect device type with debounce
   useEffect(() => {
     const checkDevice = () => {
       const width = window.innerWidth;
@@ -110,7 +95,6 @@ export function ExperimentContainer({
     };
   }, []);
 
-  // Force canvas resize on container size changes
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -129,16 +113,28 @@ export function ExperimentContainer({
     return () => { resizeObserver.disconnect(); };
   }, []);
 
-  // Ensure no body scroll
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = originalOverflow; };
   }, []);
 
+  const [canRender, setCanRender] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      if (w > 0 && h > 0) setCanRender(true);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  if (!canRender) return null;
+
   return (
-    <div ref={containerRef} className="fixed inset-0 w-screen h-screen overflow-hidden bg-linear-to-br from-slate-100 via-blue-50 to-purple-50">
-      {/* Main 3D Canvas */}
+    <div ref={containerRef} className="fixed inset-0 w-screen h-screen overflow-hidden" style={{ background: `radial-gradient(ellipse at center, #1a1a3e 0%, #0a0a1e 50%, #050510 100%)` }}>
       <Canvas
         ref={canvasRef}
         shadows
@@ -148,7 +144,7 @@ export function ExperimentContainer({
           powerPreference: "high-performance",
           outputColorSpace: THREE.SRGBColorSpace,
           toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.0,
+          toneMappingExposure: 1.2,
         }}
         dpr={isMobile ? 0.75 : [1, 1.5]}
         className="w-full h-full block touch-none"
@@ -159,7 +155,7 @@ export function ExperimentContainer({
         <PerspectiveCamera
           makeDefault
           position={cameraPosition}
-          fov={isMobile ? 60 : isTablet ? 50 : 45}
+          fov={isMobile ? 55 : isTablet ? 50 : 50}
           near={0.1}
           far={1000}
         />
@@ -167,10 +163,11 @@ export function ExperimentContainer({
           makeDefault
           enableDamping
           dampingFactor={0.05}
-          minDistance={isMobile ? 3 : 5}
-          maxDistance={isMobile ? 150 : 250}
-          maxPolarAngle={Math.PI * 0.95}
+          minDistance={5}
+          maxDistance={100}
+          maxPolarAngle={Math.PI * 0.85}
           minPolarAngle={0}
+          target={[0, 0, 0]}
           enablePan={true}
           panSpeed={isMobile ? 0.8 : 0.5}
           rotateSpeed={isMobile ? 0.8 : 1}
@@ -181,54 +178,49 @@ export function ExperimentContainer({
           }}
         />
 
-        {/* Lighting */}
-        <ambientLight intensity={0.4} />
+        {/* Enhanced Lighting */}
+        <ambientLight intensity={0.6} />
         <directionalLight
-          position={[10, 20, 10]}
-          intensity={2}
+          position={[15, 25, 15]}
+          intensity={2.5}
           castShadow
-          shadow-mapSize={[1024, 1024]}
-          shadow-camera-far={100}
-          shadow-camera-left={-50}
-          shadow-camera-right={50}
-          shadow-camera-top={50}
-          shadow-camera-bottom={-50}
+          shadow-mapSize={[2048, 2048]}
+          shadow-camera-far={150}
+          shadow-camera-left={-75}
+          shadow-camera-right={75}
+          shadow-camera-top={75}
+          shadow-camera-bottom={-75}
           shadow-bias={-0.0001}
         />
-        <directionalLight position={[-10, 10, -10]} intensity={0.8} />
-        <hemisphereLight args={["#b1e1ff", "#1a1a2e", 0.6]} />
-        <pointLight position={[0, 15, 0]} intensity={0.5} color="#8b5cf6" />
+        <directionalLight position={[-15, 15, -15]} intensity={1.2} color="#b1e1ff" />
+        <hemisphereLight args={["#c4d9ff", "#1a1a2e", 0.8]} />
+        <pointLight position={[0, 20, 0]} intensity={0.8} color="#a78bfa" />
+        <pointLight position={[-20, 10, 20]} intensity={0.4} color="#f59e0b" />
 
+        {/* Fog - pushed way back */}
         {enableFog && (
-          <fog attach="fog" args={[new THREE.Color(backgroundColor).getStyle(), 60, 200]} />
+          <fog attach="fog" args={["#0d0d2b", 150, 400]} />
         )}
-        <Environment preset="city" />
-
-        {/* Ground - visible grid */}
-        <gridHelper args={[200, 80, "#2a2a4a", "#1a1a3a"]} position={[0, -0.01, 0]} />
-        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.02, 0]}>
-          <planeGeometry args={[200, 200]} />
-          <meshStandardMaterial color="#0a0a1e" roughness={0.95} metalness={0.05} />
-        </mesh>
+        <Environment preset="night" />
 
         <group>{children}</group>
       </Canvas>
 
-      {/* Header Bar */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-linear-to-b from-white/90 via-white/70 to-transparent p-3 sm:p-4 backdrop-blur-sm">
+      {/* Header Bar with dark theme */}
+      <div className="absolute top-0 left-0 right-0 z-10 p-3 sm:p-4 backdrop-blur-md" style={{ background: 'linear-gradient(to bottom, rgba(10, 10, 30, 0.9), rgba(10, 10, 30, 0.6), transparent)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto px-2 sm:px-0">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/80 hover:bg-white border border-gray-200 text-gray-700 hover:text-gray-900 text-xs sm:text-sm font-medium transition-all shadow-sm hover:shadow-md backdrop-blur-sm flex-shrink-0"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white hover:text-white text-xs sm:text-sm font-medium transition-all shadow-lg backdrop-blur-sm flex-shrink-0"
           >
             ← <span className="hidden sm:inline">Home</span>
           </button>
           <div className="flex-1 min-w-0 mx-2 sm:mx-4">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 tracking-tight truncate">
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight truncate drop-shadow-lg">
               {title}
             </h1>
             {description && (
-              <p className="text-xs sm:text-sm text-gray-600 mt-1 hidden sm:block">
+              <p className="text-xs sm:text-sm text-gray-300 mt-1 hidden sm:block drop-shadow">
                 {description}
               </p>
             )}
@@ -236,7 +228,7 @@ export function ExperimentContainer({
         </div>
       </div>
 
-      {/* Toggle Buttons (top-right) */}
+      {/* Toggle Buttons */}
       <div className={`
         absolute top-16 sm:top-20 right-2 sm:right-4 z-20
         flex flex-row sm:flex-col gap-1 sm:gap-2
@@ -248,7 +240,7 @@ export function ExperimentContainer({
               px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showControls
                 ? "bg-purple-600 text-white shadow-lg shadow-purple-500/50"
-                : "bg-white/90 text-gray-700 hover:bg-white border border-gray-200 backdrop-blur-sm shadow-md"}
+                : "bg-white/20 text-white hover:bg-white/30 border border-white/30 backdrop-blur-sm shadow-lg"}
             `}
           >
             {showControls ? "✓" : "⚙"} <span className="hidden sm:inline">Controls</span>
@@ -261,7 +253,7 @@ export function ExperimentContainer({
               px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200
               ${showData
                 ? "bg-blue-600 text-white shadow-lg shadow-blue-500/50"
-                : "bg-white/90 text-gray-700 hover:bg-white border border-gray-200 backdrop-blur-sm shadow-md"}
+                : "bg-white/20 text-white hover:bg-white/30 border border-white/30 backdrop-blur-sm shadow-lg"}
             `}
           >
             {showData ? "✓" : "📊"} <span className="hidden sm:inline">Data</span>
@@ -269,7 +261,7 @@ export function ExperimentContainer({
         )}
       </div>
 
-      {/* Controls Panel - Slide-in Sidebar */}
+      {/* Controls Panel */}
       {controls && showControls && (
         <div
           className="absolute top-0 right-0 z-30 h-full w-full sm:w-80 md:w-96 bg-white/95 backdrop-blur-xl border-l border-purple-500/30 shadow-2xl overflow-y-auto"
@@ -285,7 +277,7 @@ export function ExperimentContainer({
         </div>
       )}
 
-      {/* Data Panel - Bottom-left */}
+      {/* Data Panel */}
       {dataPanel && showData && (
         <div className={`
           absolute bottom-16 sm:bottom-20 left-2 sm:left-4 z-20
@@ -302,10 +294,10 @@ export function ExperimentContainer({
         </div>
       )}
 
-      {/* Details Panel - Only visible when explicitly opened */}
+      {/* Details Panel */}
       {details && showDetails && (
         <div className="absolute top-20 right-4 z-40 w-80 sm:w-96 max-h-[70vh] bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden transition-all duration-300">
-          <div className="sticky top-0 bg-linear-to-r from-blue-600 to-purple-600 p-3 sm:p-4 border-b border-gray-200 shrink-0">
+          <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-purple-600 p-3 sm:p-4 border-b border-gray-200 shrink-0">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-bold text-white">Experiment Details</h2>
               <button
@@ -322,10 +314,9 @@ export function ExperimentContainer({
         </div>
       )}
 
-      {/* ====== FLOATING SIMULATION BAR ====== */}
+      {/* FLOATING SIMULATION BAR */}
       {simulationBar && (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 sm:gap-3 bg-gray-900/90 backdrop-blur-xl border border-gray-600/50 rounded-full px-3 sm:px-5 py-2 sm:py-2.5 shadow-2xl">
-          {/* Play / Pause */}
           <button
             onClick={simulationBar.onPlayPause}
             className={`w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full font-bold text-sm sm:text-base transition-all shadow-md ${
@@ -338,7 +329,6 @@ export function ExperimentContainer({
             {simulationBar.isPlaying ? "⏸" : "▶"}
           </button>
 
-          {/* Reset */}
           <button
             onClick={simulationBar.onReset}
             className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full bg-gray-700 hover:bg-gray-600 text-white text-sm sm:text-base transition-all shadow-md"
@@ -347,10 +337,8 @@ export function ExperimentContainer({
             🔄
           </button>
 
-          {/* Divider */}
           <div className="w-px h-6 bg-gray-600" />
 
-          {/* Speed control */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <span className="text-[10px] sm:text-xs text-gray-400 hidden sm:inline">Speed</span>
             <input
@@ -371,9 +359,8 @@ export function ExperimentContainer({
       )}
 
       {/* Instructions hint */}
-      <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 z-10 text-[10px] sm:text-xs text-gray-500 bg-black/50 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg backdrop-blur-sm hidden sm:block">
+      <div className="absolute bottom-2 right-2 sm:bottom-4 sm:right-4 z-10 text-[10px] sm:text-xs text-gray-400 bg-black/60 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg backdrop-blur-sm hidden sm:block">
         <span>🖱️ Drag to rotate • Scroll to zoom • Right-click to pan</span>
-        <span className="sm:hidden block mt-0.5">📱 One finger: rotate • Pinch: zoom • Two fingers: pan</span>
       </div>
     </div>
   );

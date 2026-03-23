@@ -26,10 +26,12 @@ export default function DNAReplicationPage() {
   const autoPlayRef = useRef<NodeJS.Timeout | null>(null);
 
   const [dnaData, setDnaData] = useState<DNAReplicationData>({
-    step: 'Intact DNA',
-    enzymes: [],
+    step: 'Initiation',
+    stage: 'Original DNA',
     nucleotidesAdded: 0,
-    description: 'Double-stranded DNA molecule rotating intact',
+    description: 'Double-stranded DNA molecule intact.',
+    leadingStrand: 0,
+    laggingStrand: 0,
   });
 
   // Auto-play through steps
@@ -41,7 +43,7 @@ export default function DNAReplicationPage() {
         } else {
           setAutoPlay(false);
         }
-      }, 5000 / simulationSpeed);
+      }, 6000 / simulationSpeed);
     }
     return () => {
       if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
@@ -59,10 +61,12 @@ export default function DNAReplicationPage() {
     setStep(0);
     setAutoPlay(false);
     setDnaData({
-      step: 'Intact DNA',
-      enzymes: [],
+      step: 'Initiation',
+      stage: 'Original DNA',
       nucleotidesAdded: 0,
-      description: 'Double-stranded DNA molecule rotating intact',
+      description: 'Double-stranded DNA molecule intact.',
+      leadingStrand: 0,
+      laggingStrand: 0,
     });
   }, []);
 
@@ -87,8 +91,14 @@ export default function DNAReplicationPage() {
             onChange={setSpeed}
           />
           <div className="mt-3 space-y-2">
-            <label className="text-xs text-gray-400 block mb-2">Replication Step</label>
-            {['Intact DNA', 'Helicase Unzips', 'Primase', 'DNA Polymerase', 'Two Daughter DNA'].map((s, i) => (
+            <label className="text-xs text-gray-400 block mb-2">Replication Phase</label>
+            {[
+              'Initiation',
+              'Unwinding',
+              'Primer Binding',
+              'Elongation',
+              'Completion'
+            ].map((s, i) => (
               <button
                 key={s}
                 onClick={() => setStep(i)}
@@ -144,9 +154,10 @@ export default function DNAReplicationPage() {
       <DataGrid
         data={{
           step: { value: 0, unit: dnaData.step, color: '#3b82f6', decimals: 0 },
-          enzymes: { value: dnaData.enzymes.length, unit: dnaData.enzymes.join(', ') || 'None', color: '#f59e0b', decimals: 0 },
+          stage: { value: 0, unit: dnaData.stage, color: '#f59e0b', decimals: 0 },
           nucleotides: { value: dnaData.nucleotidesAdded, unit: 'bases', color: '#22c55e', decimals: 0 },
-          description: { value: 0, unit: dnaData.description, color: '#8b5cf6', decimals: 0 },
+          leading: { value: dnaData.leadingStrand, unit: 'leading', color: '#3b82f6', decimals: 0 },
+          lagging: { value: dnaData.laggingStrand, unit: 'lagging', color: '#f59e0b', decimals: 0 },
           status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
@@ -168,8 +179,8 @@ export default function DNAReplicationPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="DNA Replication"
-        description="Step-by-step visualization of DNA replication with enzymes"
-        cameraPosition={[0, 0, 14]}
+        description="Step-by-step visualization of semi-conservative DNA replication"
+        cameraPosition={[0, 0, 16]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={dataPanel}

@@ -13,7 +13,7 @@ import {
   DataPanel,
 } from "@/components/experiment-ui";
 
-const COLOR_SCHEMES = ["rainbow", "fire", "grayscale", "electric"] as const;
+const COLOR_SCHEMES = ["rainbow", "fire", "grayscale", "electric", "ocean"] as const;
 const DEFAULT_ITERATIONS = 100;
 const DEFAULT_ZOOM = 1.0;
 const DEFAULT_CENTER_X = -0.5;

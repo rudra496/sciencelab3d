@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   ExperimentContainer,
+  SimulationController,
   FloatingControlPanel,
   DataPanel,
 } from '@/components/experiment-ui';
@@ -105,6 +106,7 @@ export default function MitosisMeiosisPage() {
               checked={showLabels}
               onChange={(e) => setShowLabels(e.target.checked)}
               className="w-4 h-4 rounded"
+              style={{ accentColor: mode === 'mitosis' ? '#f59e0b' : '#ec4899' }}
             />
             Show Labels
           </label>
@@ -130,6 +132,10 @@ export default function MitosisMeiosisPage() {
                   <span>Purpose:</span>
                   <span className="text-amber-400">Growth/Repair</span>
                 </div>
+                <div className="flex justify-between text-gray-300">
+                  <span>Genetic variation:</span>
+                  <span className="text-amber-400">None</span>
+                </div>
               </>
             ) : (
               <>
@@ -149,6 +155,10 @@ export default function MitosisMeiosisPage() {
                   <span>Purpose:</span>
                   <span className="text-pink-400">Gametes</span>
                 </div>
+                <div className="flex justify-between text-gray-300">
+                  <span>Genetic variation:</span>
+                  <span className="text-pink-400">Yes (crossing over)</span>
+                </div>
               </>
             )}
           </div>
@@ -166,11 +176,12 @@ export default function MitosisMeiosisPage() {
           chromosomes: { value: divisionData.chromosomesCount, unit: 'chromosomes', color: mode === 'mitosis' ? '#fbbf24' : '#f472b6', decimals: 0 },
           daughterCells: { value: divisionData.daughterCells, unit: 'cells', color: mode === 'mitosis' ? '#fcd34d' : '#fb7185', decimals: 0 },
           mode: { value: 0, unit: mode === 'mitosis' ? 'Mitosis' : 'Meiosis', color: mode === 'mitosis' ? '#f59e0b' : '#ec4899', decimals: 0 },
+          status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
       />
     ),
-    [divisionData, mode]
+    [divisionData, mode, isPlaying]
   );
 
   const dataPanel = useMemo(
@@ -188,18 +199,11 @@ export default function MitosisMeiosisPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="Mitosis & Meiosis"
-        description={mode === 'mitosis' ? 'Cell division for growth and repair' : 'Gamete formation with crossing over'}
-        cameraPosition={[0, 0, 12]}
+        description={mode === 'mitosis' ? 'Cell division for growth and repair - produces identical cells' : 'Gamete formation with crossing over - produces genetic diversity'}
+        cameraPosition={[0, 0, 14]}
         backgroundColor="#050510"
         controls={null}
         dataPanel={dataPanel}
-        simulationBar={{
-          isPlaying,
-          onPlayPause: handlePlayPause,
-          onReset: handleReset,
-          speed: simulationSpeed,
-          onSpeedChange: handleSpeedChange,
-        }}
       >
         <MitosisMeiosisSceneComponent
           onDataChange={handleDataChange}
@@ -211,6 +215,15 @@ export default function MitosisMeiosisPage() {
           showLabels={showLabels}
         />
       </ExperimentContainer>
+
+      <SimulationController
+        isPlaying={isPlaying}
+        onPlayPause={handlePlayPause}
+        onReset={handleReset}
+        speed={simulationSpeed}
+        onSpeedChange={handleSpeedChange}
+        timeElapsed={0}
+      />
 
       {showControls && (
         <FloatingControlPanel initialPosition={{ x: typeof window !== 'undefined' ? window.innerWidth - 340 : 1260, y: 80 }}>

@@ -32,6 +32,7 @@ export default function ProteinSynthesisPage() {
     aminoAcidAdded: 'Met',
     proteinLength: 0,
     description: 'DNA double helix in nucleus with RNA Polymerase',
+    nucleotidesTranscribed: 0,
   });
 
   // Auto-play through steps
@@ -43,7 +44,7 @@ export default function ProteinSynthesisPage() {
         } else {
           setAutoPlay(false);
         }
-      }, 5000 / simulationSpeed);
+      }, 5500 / simulationSpeed);
     }
     return () => {
       if (autoPlayRef.current) clearTimeout(autoPlayRef.current);
@@ -67,6 +68,7 @@ export default function ProteinSynthesisPage() {
       aminoAcidAdded: 'Met',
       proteinLength: 0,
       description: 'DNA double helix in nucleus with RNA Polymerase',
+      nucleotidesTranscribed: 0,
     });
   }, []);
 
@@ -91,14 +93,14 @@ export default function ProteinSynthesisPage() {
             onChange={setSpeed}
           />
           <div className="mt-3 space-y-2">
-            <label className="text-xs text-gray-400 block mb-2">Protein Synthesis Step</label>
+            <label className="text-xs text-gray-400 block mb-2">Protein Synthesis Phase</label>
             {[
               'DNA in Nucleus',
-              'RNA Polymerase Builds mRNA',
-              'mRNA Exits Nucleus',
-              'Ribosome Binds mRNA',
-              'tRNA Brings Amino Acids',
-              'Protein Folding'
+              'mRNA Synthesis',
+              'mRNA Processing & Export',
+              'Translation Initiation',
+              'Elongation',
+              'Termination & Folding'
             ].map((s, i) => (
               <button
                 key={s}
@@ -159,6 +161,7 @@ export default function ProteinSynthesisPage() {
           codon: { value: 0, unit: proteinData.codonBeingRead, color: '#f97316', decimals: 0 },
           aminoAcid: { value: 0, unit: proteinData.aminoAcidAdded, color: '#22c55e', decimals: 0 },
           protein: { value: proteinData.proteinLength, unit: 'AA', color: '#3b82f6', decimals: 0 },
+          nucleotides: { value: proteinData.nucleotidesTranscribed, unit: 'nt', color: '#06b6d4', decimals: 0 },
           status: { value: isPlaying ? 1 : 0, unit: isPlaying ? 'Active' : 'Paused', color: '#22c55e', decimals: 0 },
         }}
         columns={2}
@@ -180,7 +183,7 @@ export default function ProteinSynthesisPage() {
     <div className="w-full h-screen relative">
       <ExperimentContainer
         title="Protein Synthesis"
-        description="Visualize transcription and translation in 3D"
+        description="Visualize transcription and translation - Central Dogma of Biology"
         cameraPosition={[0, 0, 14]}
         backgroundColor="#050510"
         controls={null}

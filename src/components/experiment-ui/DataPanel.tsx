@@ -31,7 +31,8 @@ export function DataPanel({
   const [isDragging, setIsDragging] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [internalVisible, setInternalVisible] = useState(true);
-  const [position, setPosition] = useState(initialPosition || { x: 0, y: 0 });
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [mounted, setMounted] = useState(false);
 
   const dragOffset = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
@@ -39,23 +40,28 @@ export function DataPanel({
   // Use controlled or internal visibility state
   const isVisible = controlledVisible !== undefined ? controlledVisible : internalVisible;
 
-  // Detect mobile
+  // Detect mobile + set position after mount (avoids hydration mismatch)
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (!initialPosition) {
-        setPosition(mobile
-          ? { x: 10, y: window.innerHeight - 160 }
-          : { x: window.innerWidth - 340, y: window.innerHeight - 200 }
-        );
-      }
     };
 
     checkMobile();
+    if (initialPosition) {
+      setPosition(initialPosition);
+    } else {
+      const mobile = window.innerWidth < 768;
+      setPosition(mobile
+        ? { x: 10, y: window.innerHeight - 160 }
+        : { x: window.innerWidth - 340, y: window.innerHeight - 200 }
+      );
+    }
+    setMounted(true);
+
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, [initialPosition]);
+  }, []);
 
   // Handle visibility toggle
   const handleToggle = useCallback(() => {
@@ -136,6 +142,8 @@ export function DataPanel({
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [isDragging, isMobile, isCollapsed, position]);
+
+  if (!mounted) return null;
 
   if (!isVisible) {
     // Render just a small toggle button when hidden

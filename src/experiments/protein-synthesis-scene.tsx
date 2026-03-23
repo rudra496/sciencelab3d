@@ -12,6 +12,7 @@ export interface ProteinSynthesisData {
   aminoAcidAdded: string;
   proteinLength: number;
   description: string;
+  nucleotidesTranscribed: number;
 }
 
 interface ProteinSynthesisSceneProps {
@@ -24,9 +25,9 @@ interface ProteinSynthesisSceneProps {
   step?: number;
 }
 
-// Amino acids with their properties
+// Amino acids with properties
 const AMINO_ACIDS = [
-  { name: 'Met', fullName: 'Methionine', color: '#ef4444' },
+  { name: 'Met', fullName: 'Methionine (Start)', color: '#ef4444' },
   { name: 'Lys', fullName: 'Lysine', color: '#3b82f6' },
   { name: 'Arg', fullName: 'Arginine', color: '#22c55e' },
   { name: 'Ser', fullName: 'Serine', color: '#f59e0b' },
@@ -36,31 +37,35 @@ const AMINO_ACIDS = [
   { name: 'Val', fullName: 'Valine', color: '#f97316' },
 ];
 
-// Nucleotide colors for DNA and RNA
+// DNA colors (blue tones)
 const DNA_COLORS = {
-  A: '#3b82f6', // Blue
-  T: '#1d4ed8',
-  G: '#60a5fa',
-  C: '#93c5fd',
+  A: '#1e40af', // Dark blue
+  T: '#3b82f6', // Blue
+  G: '#60a5fa', // Light blue
+  C: '#93c5fd', // Very light blue
 };
 
+// mRNA colors (orange tones)
 const MRNA_COLORS = {
-  A: '#f97316', // Orange
-  U: '#fb923c',
-  G: '#fdba74',
-  C: '#fed7aa',
+  A: '#ea580c',
+  U: '#f97316',
+  G: '#fb923c',
+  C: '#fdba74',
 };
 
-const TRNA_COLORS = '#22c55e'; // Green
+// tRNA color
+const TRNA_COLOR = '#22c55e';
+
+// Ribosome colors
 const RIBOSOME_COLORS = {
-  large: '#8b5cf6', // Purple
+  large: '#8b5cf6',
   small: '#a78bfa',
 };
 
-// DNA template sequence (for transcription)
+// DNA template sequence (coding strand shown, template is complementary)
 const DNA_SEQUENCE = ['A', 'T', 'G', 'C', 'G', 'A', 'T', 'C', 'G', 'A', 'T', 'C', 'G', 'A', 'T'];
 
-// mRNA codons (complementary to DNA, with U instead of T)
+// mRNA codons (transcribed from DNA, U instead of T)
 const MRNA_CODONS = [
   ['A', 'U', 'G'], // Met (start)
   ['A', 'A', 'A'], // Lys
@@ -72,13 +77,51 @@ const MRNA_CODONS = [
   ['G', 'U', 'U'], // Val
 ];
 
+const COMPLEMENTARY_DNA: Record<string, string> = {
+  A: 'T',
+  T: 'A',
+  G: 'C',
+  C: 'G',
+};
+
+const COMPLEMENTARY_MRNA: Record<string, string> = {
+  A: 'U',
+  U: 'A',
+  G: 'C',
+  C: 'G',
+};
+
 const STEPS = [
-  { name: 'DNA in Nucleus', phase: 'Transcription', desc: 'DNA double helix in nucleus with RNA Polymerase' },
-  { name: 'RNA Polymerase Builds mRNA', phase: 'Transcription', desc: 'RNA Polymerase reads DNA (3\'→5\'), builds mRNA (5\'→3\')' },
-  { name: 'mRNA Exits Nucleus', phase: 'Transcription', desc: 'mRNA detaches and exits through nuclear pore' },
-  { name: 'Ribosome Binds mRNA', phase: 'Translation', desc: 'Ribosome clamps onto mRNA at start codon (AUG)' },
-  { name: 'tRNA Brings Amino Acids', phase: 'Translation', desc: 'tRNA molecules bring amino acids, codon-anticodon pairing' },
-  { name: 'Protein Folding', phase: 'Translation', desc: 'Polypeptide chain folds into functional protein' },
+  {
+    phase: 'Transcription',
+    name: 'DNA in Nucleus',
+    desc: 'DNA double helix in nucleus. RNA Polymerase binds to promoter region.',
+  },
+  {
+    phase: 'Transcription',
+    name: 'mRNA Synthesis',
+    desc: 'RNA Polymerase reads DNA 3\'→5\', builds mRNA 5\'→3\'. Uracil pairs with Adenine.',
+  },
+  {
+    phase: 'Transcription',
+    name: 'mRNA Processing & Export',
+    desc: 'mRNA detaches, exits nucleus through nuclear pore into cytoplasm.',
+  },
+  {
+    phase: 'Translation',
+    name: 'Translation Initiation',
+    desc: 'Ribosome binds mRNA at start codon (AUG). Initiation tRNA brings first amino acid.',
+  },
+  {
+    phase: 'Translation',
+    name: 'Elongation',
+    desc: 'tRNAs bring amino acids matching codons. Polypeptide chain grows bond by bond.',
+  },
+  {
+    phase: 'Translation',
+    name: 'Termination & Folding',
+    desc: 'Stop codon reached. Polypeptide chain folds into functional protein.',
+  },
 ];
 
 export default function ProteinSynthesisSceneComponent({
@@ -97,9 +140,11 @@ export default function ProteinSynthesisSceneComponent({
   const rotationRef = useRef(0);
   const rnapProgressRef = useRef(0);
   const exitProgressRef = useRef(0);
+  const ribosomeProgressRef = useRef(0);
   const codonIndexRef = useRef(0);
   const aminoAcidsFormedRef = useRef(0);
   const foldingProgressRef = useRef(0);
+  const nucleotidesTranscribedRef = useRef(0);
 
   // React state for UI updates (throttled)
   const [currentCodon, setCurrentCodon] = useState('AUG');
@@ -113,9 +158,11 @@ export default function ProteinSynthesisSceneComponent({
     rotationRef.current = 0;
     rnapProgressRef.current = 0;
     exitProgressRef.current = 0;
+    ribosomeProgressRef.current = 0;
     codonIndexRef.current = 0;
     aminoAcidsFormedRef.current = 0;
     foldingProgressRef.current = 0;
+    nucleotidesTranscribedRef.current = 0;
     setCurrentCodon('AUG');
     setCurrentAminoAcid('Met');
     setProteinLength(0);
@@ -127,22 +174,25 @@ export default function ProteinSynthesisSceneComponent({
 
     if (groupRef.current && isPlaying) {
       timeRef.current += delta * simulationSpeed * speed;
-      rotationRef.current += delta * 0.08 * simulationSpeed;
+      rotationRef.current += delta * 0.06 * simulationSpeed;
 
       // Step-based animations
       if (step === 1) {
-        // RNA Polymerase building mRNA
+        // mRNA synthesis
         rnapProgressRef.current = Math.min(100, rnapProgressRef.current + delta * 10 * simulationSpeed * speed);
+        nucleotidesTranscribedRef.current = Math.min(15, nucleotidesTranscribedRef.current + delta * 1.5 * simulationSpeed * speed);
       } else if (step === 2) {
         // mRNA exiting nucleus
+        rnapProgressRef.current = 100;
+        nucleotidesTranscribedRef.current = 15;
         exitProgressRef.current = Math.min(100, exitProgressRef.current + delta * 15 * simulationSpeed * speed);
       } else if (step === 3) {
         // Ribosome binding
-        rnapProgressRef.current = Math.min(50, rnapProgressRef.current + delta * 30 * simulationSpeed * speed);
+        ribosomeProgressRef.current = Math.min(100, ribosomeProgressRef.current + delta * 25 * simulationSpeed * speed);
       } else if (step === 4) {
-        // tRNA bringing amino acids
-        codonIndexRef.current = Math.min(8, codonIndexRef.current + delta * 1.5 * simulationSpeed * speed);
-        aminoAcidsFormedRef.current = Math.min(8, aminoAcidsFormedRef.current + delta * 1.2 * simulationSpeed * speed);
+        // tRNA bringing amino acids, elongation
+        codonIndexRef.current = Math.min(8, codonIndexRef.current + delta * 1.2 * simulationSpeed * speed);
+        aminoAcidsFormedRef.current = Math.min(8, aminoAcidsFormedRef.current + delta * 1 * simulationSpeed * speed);
       } else if (step === 5) {
         // Protein folding
         aminoAcidsFormedRef.current = 8;
@@ -167,6 +217,7 @@ export default function ProteinSynthesisSceneComponent({
             aminoAcidAdded: currentAminoAcid,
             proteinLength: Math.floor(aminoAcidsFormedRef.current),
             description: STEPS[step].desc,
+            nucleotidesTranscribed: Math.floor(nucleotidesTranscribedRef.current),
           });
         }
       }
@@ -179,19 +230,19 @@ export default function ProteinSynthesisSceneComponent({
     for (let i = 0; i < 16; i++) {
       const angle = i * 0.5 + rotationRef.current;
       points.push(new THREE.Vector3(
-        Math.cos(angle) * 1.2 - 3,
+        Math.cos(angle) * 1.3 - 4,
         i * 0.5 - 4 + offsetY,
-        Math.sin(angle) * 1.2
+        Math.sin(angle) * 1.3
       ));
     }
     return points;
   }, [rotationRef.current]);
 
   // Generate mRNA strand points
-  const generateMRNAPoints = useCallback(() => {
+  const generateMRNAPoints = useCallback((offsetX = 0) => {
     const points: THREE.Vector3[] = [];
     for (let i = 0; i < 9; i++) {
-      points.push(new THREE.Vector3(2, (i - 4) * 1.5, 0));
+      points.push(new THREE.Vector3(1.5 + offsetX, (i - 4) * 1.2, 0));
     }
     return points;
   }, []);
@@ -200,7 +251,7 @@ export default function ProteinSynthesisSceneComponent({
     <>
       <ambientLight intensity={0.4} />
       <directionalLight position={[10, 10, 5]} intensity={0.8} />
-      <pointLight position={[-3, 0, 0]} intensity={0.4} color="#3b82f6" />
+      <pointLight position={[-4, 0, 0]} intensity={0.4} color="#3b82f6" />
       <pointLight position={[2, 0, 0]} intensity={step >= 3 ? 0.4 : 0} color="#f97316" />
       <pointLight position={[4, 2, 0]} intensity={step >= 3 ? 0.4 : 0} color="#8b5cf6" />
 
@@ -217,23 +268,28 @@ export default function ProteinSynthesisSceneComponent({
               <div className="text-gray-300 text-sm mt-1">{STEPS[step].desc}</div>
               {(step === 4 || step === 5) && (
                 <div className="text-gray-400 text-xs mt-2">
-                  Codon: {currentCodon} | Amino Acid: {currentAminoAcid} | Protein: {proteinLength}/8
+                  Codon: {currentCodon} | AA: {currentAminoAcid} | Protein: {proteinLength}/8
+                </div>
+              )}
+              {step === 1 && (
+                <div className="text-gray-400 text-xs mt-2">
+                  Nucleotides: {Math.floor(nucleotidesTranscribedRef.current)}/15
                 </div>
               )}
             </div>
           </Html>
         )}
 
-        {/* TRANSCRIPTION: Steps 0-2 */}
+        {/* ===== TRANSCRIPTION PHASE (Steps 0-2) ===== */}
         {step <= 2 && (
           <group>
             {/* Nucleus boundary */}
-            <mesh position={[-3, 2, 0]}>
-              <sphereGeometry args={[5, 32, 32]} />
+            <mesh position={[-3, 1.5, 0]}>
+              <sphereGeometry args={[Math.max(0.01, 5.5), 32, 32]} />
               <meshStandardMaterial
                 color="#1e3a5f"
                 transparent
-                opacity={0.15}
+                opacity={0.12}
                 side={THREE.BackSide}
               />
             </mesh>
@@ -257,47 +313,49 @@ export default function ProteinSynthesisSceneComponent({
             {/* DNA bases */}
             {DNA_SEQUENCE.map((base, i) => (
               <group key={i}>
-                <mesh position={[Math.cos(i * 0.5 + rotationRef.current) * 1.2 - 3, i * 0.5 - 4, Math.sin(i * 0.5 + rotationRef.current) * 1.2]}>
-                  <sphereGeometry args={[0.12, 10, 10]} />
+                <mesh position={[Math.cos(i * 0.5 + rotationRef.current) * 1.3 - 4, i * 0.5 - 4, Math.sin(i * 0.5 + rotationRef.current) * 1.3]}>
+                  <sphereGeometry args={[Math.max(0.01, 0.14), 10, 10]} />
                   <meshStandardMaterial color={DNA_COLORS[base as keyof typeof DNA_COLORS]} />
                 </mesh>
-                <mesh position={[Math.cos(i * 0.5 + rotationRef.current) * 1.2 - 3 + 0.4, i * 0.5 - 4, Math.sin(i * 0.5 + rotationRef.current) * 1.2 + 0.4]}>
-                  <sphereGeometry args={[0.12, 10, 10]} />
+                <mesh position={[Math.cos(i * 0.5 + rotationRef.current) * 1.3 - 4 + 0.4, i * 0.5 - 4, Math.sin(i * 0.5 + rotationRef.current) * 1.3 + 0.4]}>
+                  <sphereGeometry args={[Math.max(0.01, 0.14), 10, 10]} />
                   <meshStandardMaterial color={DNA_COLORS[COMPLEMENTARY_DNA[base as keyof typeof COMPLEMENTARY_DNA] as keyof typeof DNA_COLORS]} />
                 </mesh>
               </group>
             ))}
 
             {/* RNA Polymerase */}
-            {step >= 0 && step <= 2 && showLabels && (
-              <group position={[-3, -3 + (rnapProgressRef.current / 100) * 5, 1]}>
+            {(step >= 0 && step <= 2) && (
+              <group position={[-4, -4 + (rnapProgressRef.current / 100) * 5, 1.5]}>
                 <mesh>
-                  <sphereGeometry args={[0.9, 16, 16]} />
+                  <sphereGeometry args={[Math.max(0.01, 1), 16, 16]} />
                   <meshStandardMaterial
                     color="#dc2626"
                     emissive="#dc2626"
-                    emissiveIntensity={0.3}
+                    emissiveIntensity={0.4}
                   />
                 </mesh>
-                <Html position={[1.5, 0, 0]} distanceFactor={10}>
-                  <div className="bg-red-600/95 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg">
-                    RNA Polymerase
-                  </div>
-                </Html>
+                {showLabels && (
+                  <Html position={[1.8, 0, 0]} distanceFactor={10}>
+                    <div className="bg-red-600/95 text-white px-2 py-1 rounded-lg text-xs font-bold shadow-lg">
+                      RNA Polymerase
+                    </div>
+                  </Html>
+                )}
               </group>
             )}
 
             {/* Growing mRNA strand */}
             {step >= 1 && (
-              <group position={[-1.5, -3 + (rnapProgressRef.current / 100) * 5, 0]}>
+              <group position={[-2.5, -4 + (rnapProgressRef.current / 100) * 5, 0]}>
                 {Array.from({ length: Math.floor((rnapProgressRef.current / 100) * 8) }).map((_, i) => (
                   <group key={i} position={[i * 0.4, 0, 0]}>
                     <mesh>
-                      <sphereGeometry args={[0.1, 8, 8]} />
-                      <meshStandardMaterial color={MRNA_COLORS['A']} />
+                      <sphereGeometry args={[Math.max(0.01, 0.1), 8, 8]} />
+                      <meshStandardMaterial color={MRNA_COLORS.A} />
                     </mesh>
                     <mesh position={[0.08, 0.08, 0]}>
-                      <sphereGeometry args={[0.08, 8, 8]} />
+                      <sphereGeometry args={[Math.max(0.01, 0.08), 8, 8]} />
                       <meshStandardMaterial color={MRNA_COLORS[['A', 'U', 'G', 'C'][i % 4] as keyof typeof MRNA_COLORS]} />
                     </mesh>
                   </group>
@@ -307,13 +365,13 @@ export default function ProteinSynthesisSceneComponent({
 
             {/* mRNA exiting nucleus (Step 2) */}
             {step === 2 && (
-              <group position={[-1.5 + (exitProgressRef.current / 100) * 3.5, 0, 0]}>
-                <Line points={generateMRNAPoints()} color="#f97316" lineWidth={2} opacity={0.7} transparent />
+              <group position={[-2.5 + (exitProgressRef.current / 100) * 5, 0, 0]}>
+                <Line points={generateMRNAPoints()} color="#f97316" lineWidth={2.5} opacity={0.8} transparent />
                 {MRNA_CODONS.map((codon, i) => (
-                  <group key={i} position={[2, (i - 4) * 1.5, 0]}>
+                  <group key={i} position={[1.5, (i - 4) * 1.2, 0]}>
                     {codon.map((base, j) => (
                       <mesh key={j} position={[j * 0.3, 0, 0]}>
-                        <sphereGeometry args={[0.12, 10, 10]} />
+                        <sphereGeometry args={[Math.max(0.01, 0.14), 10, 10]} />
                         <meshStandardMaterial color={MRNA_COLORS[base as keyof typeof MRNA_COLORS]} />
                       </mesh>
                     ))}
@@ -324,80 +382,82 @@ export default function ProteinSynthesisSceneComponent({
 
             {/* Nuclear pore */}
             {step === 2 && showLabels && (
-              <Html position={[1, 0, 0]} distanceFactor={10}>
+              <Html position={[0.5, 0, 0]} distanceFactor={10}>
                 <div className="bg-blue-500/95 text-white px-2 py-1 rounded-lg text-xs font-bold">
-                  Nuclear Pore
+                  Nuclear Pore → Cytoplasm
                 </div>
               </Html>
             )}
           </group>
         )}
 
-        {/* TRANSLATION: Steps 3-5 */}
+        {/* ===== TRANSLATION PHASE (Steps 3-5) ===== */}
         {step >= 3 && (
           <group>
             {/* mRNA strand in cytoplasm */}
-            <Line points={generateMRNAPoints()} color="#f97316" lineWidth={2} opacity={0.7} transparent />
+            <Line points={generateMRNAPoints()} color="#f97316" lineWidth={2.5} opacity={0.8} transparent />
 
-            {/* mRNA codons */}
+            {/* mRNA codons with base labels */}
             {MRNA_CODONS.map((codon, i) => {
               const isProcessed = i < aminoAcidsFormedRef.current;
               const isCurrent = Math.floor(codonIndexRef.current) === i;
 
               return (
-                <group key={i} position={[2, (i - 4) * 1.5, 0]}>
+                <group key={i} position={[1.5, (i - 4) * 1.2, 0]}>
                   {codon.map((base, j) => (
-                    <mesh key={j} position={[j * 0.3, 0, 0]}>
-                      <sphereGeometry args={[0.13, 10, 10]} />
+                    <mesh key={j} position={[j * 0.32, 0, 0]}>
+                      <sphereGeometry args={[Math.max(0.01, 0.15), 10, 10]} />
                       <meshStandardMaterial
                         color={MRNA_COLORS[base as keyof typeof MRNA_COLORS]}
                         emissive={isCurrent ? MRNA_COLORS[base as keyof typeof MRNA_COLORS] : '#000000'}
-                        emissiveIntensity={isCurrent ? 0.4 : 0}
+                        emissiveIntensity={isCurrent ? 0.5 : 0}
                       />
                     </mesh>
                   ))}
 
                   {/* tRNA bringing amino acid */}
                   {isCurrent && showLabels && (
-                    <group position={[0.9, 0, 0.5]}>
+                    <group position={[1, 0, 0.6]}>
                       <mesh>
-                        <sphereGeometry args={[0.3, 12, 12]} />
+                        <sphereGeometry args={[Math.max(0.01, 0.35), 12, 12]} />
                         <meshStandardMaterial
-                          color={TRNA_COLORS}
-                          emissive={TRNA_COLORS}
-                          emissiveIntensity={0.3}
+                          color={TRNA_COLOR}
+                          emissive={TRNA_COLOR}
+                          emissiveIntensity={0.4}
                         />
                       </mesh>
-                      {/* Anticodon */}
+                      {/* Anticodon (complementary to codon) */}
                       {codon.map((base, j) => (
-                        <mesh key={j} position={[0.15, j * 0.15 - 0.15, 0.2]}>
-                          <sphereGeometry args={[0.08, 8, 8]} />
+                        <mesh key={j} position={[0.2, j * 0.16 - 0.16, 0.25]}>
+                          <sphereGeometry args={[Math.max(0.01, 0.09), 8, 8]} />
                           <meshStandardMaterial color={MRNA_COLORS[COMPLEMENTARY_MRNA[base as keyof typeof COMPLEMENTARY_MRNA] as keyof typeof MRNA_COLORS]} />
                         </mesh>
                       ))}
-                      <Html position={[0, 0.6, 0]} distanceFactor={12}>
-                        <div className="bg-green-500/95 text-white px-2 py-1 rounded text-xs font-bold">
-                          tRNA
-                        </div>
-                      </Html>
+                      {showLabels && (
+                        <Html position={[0, 0.7, 0]} distanceFactor={12}>
+                          <div className="bg-green-500/95 text-white px-2 py-1 rounded text-xs font-bold">
+                            tRNA
+                          </div>
+                        </Html>
+                      )}
                     </group>
                   )}
 
-                  {/* Amino acid added to chain */}
+                  {/* Amino acid in chain */}
                   {isProcessed && (
-                    <mesh position={[1.5, 0, 0]}>
-                      <sphereGeometry args={[0.35, 16, 16]} />
+                    <mesh position={[1.8, 0, 0]}>
+                      <sphereGeometry args={[Math.max(0.01, 0.38), 16, 16]} />
                       <meshStandardMaterial
                         color={AMINO_ACIDS[i].color}
                         emissive={AMINO_ACIDS[i].color}
-                        emissiveIntensity={0.3}
+                        emissiveIntensity={0.35}
                       />
                     </mesh>
                   )}
 
                   {/* Amino acid labels */}
                   {isProcessed && i % 2 === 0 && showLabels && (
-                    <Html position={[1.5, 0.6, 0]} distanceFactor={12}>
+                    <Html position={[1.8, 0.7, 0]} distanceFactor={12}>
                       <div
                         className="px-2 py-1 rounded text-xs font-bold whitespace-nowrap"
                         style={{ backgroundColor: AMINO_ACIDS[i].color, color: 'white' }}
@@ -411,27 +471,27 @@ export default function ProteinSynthesisSceneComponent({
             })}
 
             {/* Ribosome */}
-            <group position={[4, 2, 0]}>
+            <group position={[3.5, 2, 0]}>
               {/* Large subunit */}
-              <mesh position={[0, 0.4, 0]}>
-                <sphereGeometry args={[1.3, 16, 16]} />
+              <mesh position={[0, 0.5, 0]}>
+                <sphereGeometry args={[Math.max(0.01, 1.4), 16, 16]} />
                 <meshStandardMaterial
                   color={RIBOSOME_COLORS.large}
                   emissive={RIBOSOME_COLORS.large}
-                  emissiveIntensity={0.2}
+                  emissiveIntensity={0.25}
                   roughness={0.4}
                 />
               </mesh>
               {/* Small subunit */}
-              <mesh position={[0, -0.6, 0]}>
-                <sphereGeometry args={[1, 16, 16]} />
+              <mesh position={[0, -0.7, 0]}>
+                <sphereGeometry args={[Math.max(0.01, 1.1), 16, 16]} />
                 <meshStandardMaterial
                   color={RIBOSOME_COLORS.small}
                   roughness={0.4}
                 />
               </mesh>
               {showLabels && (
-                <Html position={[0, 2, 0]} distanceFactor={10}>
+                <Html position={[0, 2.2, 0]} distanceFactor={10}>
                   <div className="bg-purple-500/95 text-white px-2 py-1 rounded-lg text-xs font-bold">
                     Ribosome
                   </div>
@@ -439,16 +499,16 @@ export default function ProteinSynthesisSceneComponent({
               )}
             </group>
 
-            {/* Polypeptide chain */}
+            {/* Growing polypeptide chain */}
             {aminoAcidsFormedRef.current > 0 && (
-              <group position={[5, 0, 0.8]}>
+              <group position={[4.5, 0, 1]}>
                 {Array.from({ length: Math.floor(aminoAcidsFormedRef.current) }).map((_, i) => (
-                  <mesh key={i} position={[0, (i - Math.floor(aminoAcidsFormedRef.current) / 2) * 0.5, 0]}>
-                    <sphereGeometry args={[0.3, 12, 12]} />
+                  <mesh key={i} position={[0, (i - Math.floor(aminoAcidsFormedRef.current) / 2) * 0.55, 0]}>
+                    <sphereGeometry args={[Math.max(0.01, 0.32), 12, 12]} />
                     <meshStandardMaterial
                       color={AMINO_ACIDS[i].color}
                       emissive={AMINO_ACIDS[i].color}
-                      emissiveIntensity={0.2}
+                      emissiveIntensity={0.25}
                     />
                   </mesh>
                 ))}
@@ -457,29 +517,29 @@ export default function ProteinSynthesisSceneComponent({
 
             {/* Folded protein (Step 5) */}
             {step === 5 && foldingProgressRef.current > 0 && (
-              <group position={[6, 0, 0]} rotation={[0, foldingProgressRef.current * 0.05, 0]}>
+              <group position={[6, -1, 0]} rotation={[0, foldingProgressRef.current * 0.06, 0]}>
                 {Array.from({ length: 8 }).map((_, i) => {
                   const angle = (i / 8) * Math.PI * 2;
-                  const radius = 0.8 + Math.sin(angle * 2) * 0.2;
+                  const radius = 0.9 + Math.sin(angle * 2.5) * 0.25;
                   return (
                     <mesh key={i} position={[
                       Math.cos(angle) * radius,
-                      Math.sin(angle * 3) * 0.5,
+                      Math.sin(angle * 3.5) * 0.6,
                       Math.sin(angle) * radius
                     ]}>
-                      <sphereGeometry args={[0.4, 16, 16]} />
+                      <sphereGeometry args={[Math.max(0.01, 0.42), 16, 16]} />
                       <meshStandardMaterial
                         color={AMINO_ACIDS[i].color}
                         emissive={AMINO_ACIDS[i].color}
-                        emissiveIntensity={0.3}
+                        emissiveIntensity={0.35}
                       />
                     </mesh>
                   );
                 })}
                 {showLabels && (
-                  <Html position={[0, 1.5, 0]} distanceFactor={10}>
-                    <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-3 py-2 rounded-lg text-sm font-bold">
-                      Complete Protein!
+                  <Html position={[0, 1.8, 0]} distanceFactor={10}>
+                    <div className="bg-gradient-to-r from-green-500 to-blue-500 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-lg">
+                      ✨ Complete Protein!
                     </div>
                   </Html>
                 )}
@@ -488,12 +548,28 @@ export default function ProteinSynthesisSceneComponent({
           </group>
         )}
 
-        {/* Color legend */}
+        {/* ===== CENTRAL DOGMA FLOW ARROW ===== */}
+        {showLabels && step >= 2 && (
+          <group>
+            <Html position={[0, -6, 0]} distanceFactor={10}>
+              <div className="bg-gray-800/95 px-4 py-2 rounded-lg border border-gray-600">
+                <div className="text-white text-sm font-bold text-center">
+                  DNA <span className="text-gray-400">→</span> mRNA <span className="text-gray-400">→</span> Protein
+                </div>
+                <div className="text-gray-400 text-xs text-center mt-1">
+                  Central Dogma of Molecular Biology
+                </div>
+              </div>
+            </Html>
+          </group>
+        )}
+
+        {/* ===== MOLECULE LEGEND ===== */}
         {showLabels && (
           <Html position={[-7, -5, 0]} distanceFactor={10}>
-            <div className="bg-gray-900/95 px-3 py-2 rounded-lg border border-gray-700 text-xs">
+            <div className="bg-gray-900/95 px-3 py-2 rounded-lg border border-gray-700 text-xs shadow-lg">
               <div className="text-white font-bold mb-2">Molecules</div>
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full bg-blue-500" />
                   <span className="text-gray-300">DNA</span>
@@ -518,17 +594,3 @@ export default function ProteinSynthesisSceneComponent({
     </>
   );
 }
-
-const COMPLEMENTARY_DNA: Record<string, string> = {
-  A: 'T',
-  T: 'A',
-  G: 'C',
-  C: 'G',
-};
-
-const COMPLEMENTARY_MRNA: Record<string, string> = {
-  A: 'U',
-  U: 'A',
-  G: 'C',
-  C: 'G',
-};

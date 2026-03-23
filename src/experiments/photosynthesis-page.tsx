@@ -37,6 +37,9 @@ export default function PhotosynthesisPage() {
     glucoseProduced: 0,
     atpCount: 0,
     nadphCount: 0,
+    lightEnergy: 0,
+    co2Consumed: 0,
+    h2oConsumed: 0,
   });
 
   const handlePlayPause = () => setIsPlaying((p) => !p);
