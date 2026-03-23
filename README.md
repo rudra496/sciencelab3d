@@ -15,6 +15,14 @@
 
 ---
 
+## 🌐 Live Website
+
+**Live Demo: [https://sciencelab-two.vercel.app](https://sciencelab-two.vercel.app)**
+
+Experience the fully deployed **interactive 3D science lab** — featuring virtual science experiments for Physics, Chemistry, Biology, and Mathematics, accessible instantly in your browser on any device.
+
+---
+
 ## 🌟 What is ScienceLab 3D?
 
 **ScienceLab 3D** is a fully interactive, browser-based 3D science simulation platform covering **Physics**, **Chemistry**, **Biology**, and **Mathematics**. With **40+ experiments**, real-time controls, and stunning 3D visualizations powered by Three.js, it makes learning science intuitive, engaging, and fun — no downloads, no accounts required.
