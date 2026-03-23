@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://science-lab-3d.vercel.app/sitemap.xml
+
+# Crawl-delay (optional, helps avoid overloading small servers)
+Crawl-delay: 1

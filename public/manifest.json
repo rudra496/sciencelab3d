@@ -1,0 +1,21 @@
+{
+  "name": "ScienceLab 3D",
+  "short_name": "ScienceLab3D",
+  "description": "Explore 40+ interactive 3D science experiments in Physics, Chemistry, Biology, and Mathematics.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#4f8fff",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "science", "utilities"],
+  "lang": "en",
+  "dir": "ltr"
+}

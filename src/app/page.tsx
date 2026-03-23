@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { experiments, categories } from "@/data/experiments";
 import { AnimatePresence, motion } from "framer-motion";
-import { Star, Moon, Sun } from "lucide-react";
+import { Star, Moon, Sun, Github, Linkedin, Facebook, Mail, Globe } from "lucide-react";
 
 // Favorites utilities
 function getFavorites(): string[] {
@@ -450,17 +450,83 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 py-8 text-center text-gray-600 text-sm">
-        <p>
-          Built with ❤️ by{" "}
-          <a
-            href="https://rudra496.github.io/site"
-            className="text-purple-400 hover:text-purple-300"
-          >
-            Rudra Sarker
-          </a>{" "}
-          — ScienceLab 3D © 2026
-        </p>
+      <footer className="border-t border-white/5 py-12 text-center text-gray-500 text-sm">
+        <div className="max-w-4xl mx-auto px-4">
+          {/* Social Links */}
+          <div className="flex gap-4 justify-center mb-6 flex-wrap" aria-label="Social media links">
+            <a
+              href="https://rudra496.github.io/site"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Rudra Sarker — Portfolio Website"
+              aria-label="Portfolio Website"
+              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200"
+            >
+              <Globe size={16} aria-hidden="true" />
+              <span>Portfolio</span>
+            </a>
+            <a
+              href="https://github.com/rudra496"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Rudra Sarker on GitHub"
+              aria-label="GitHub Profile"
+              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200"
+            >
+              <Github size={16} aria-hidden="true" />
+              <span>GitHub</span>
+            </a>
+            <a
+              href="https://www.linkedin.com/in/rudrasarker"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Rudra Sarker on LinkedIn"
+              aria-label="LinkedIn Profile"
+              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-blue-400 hover:scale-105 transition-all duration-200"
+            >
+              <Linkedin size={16} aria-hidden="true" />
+              <span>LinkedIn</span>
+            </a>
+            <a
+              href="https://www.facebook.com/share/1AHSdHLeoz/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Rudra Sarker on Facebook"
+              aria-label="Facebook Profile"
+              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-blue-500 hover:scale-105 transition-all duration-200"
+            >
+              <Facebook size={16} aria-hidden="true" />
+              <span>Facebook</span>
+            </a>
+            <a
+              href="mailto:rudrasarker125@gmail.com"
+              title="Email Rudra Sarker"
+              aria-label="Email Contact"
+              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-red-400 hover:scale-105 transition-all duration-200"
+            >
+              <Mail size={16} aria-hidden="true" />
+              <span>Email</span>
+            </a>
+          </div>
+
+          {/* Copyright */}
+          <p className="text-gray-600 mb-2">
+            Built with ❤️ by{" "}
+            <a
+              href="https://rudra496.github.io/site"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-400 hover:text-purple-300 transition-colors"
+              aria-label="Rudra Sarker's Portfolio"
+            >
+              Rudra Sarker
+            </a>{" "}
+            — ScienceLab 3D © 2026
+          </p>
+          <p className="text-gray-700 text-xs">
+            Free interactive 3D science experiments for Physics, Chemistry, Biology &amp; Mathematics
+          </p>
+        </div>
       </footer>
     </main>
   );
