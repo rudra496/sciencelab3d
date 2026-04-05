@@ -1,0 +1,20 @@
+name: Mirror to Backup Org
+on:
+  push:
+    branches: ['**']
+  delete:
+    branches: ['**']
+  create:
+    ref_type: branch
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git remote add backup https://rudra496:${{ secrets.MIRROR_TOKEN }}@github.com/rudrasarker125/${{ github.event.repository.name }}.git
+          git push backup --mirror --force
