@@ -20,6 +20,6 @@ export default function PendulumRoute() {
 }
 
 export const metadata = {
-  title: "Simple Pendulum - World Class Physics Lab",
+  title: "Simple Pendulum - Interactive Physics Lab",
   description: "Interactive 3D pendulum simulation with accurate physics, real-time data visualization, and energy conservation display.",
 };

@@ -7,6 +7,6 @@ export default function WaveInterferenceRoute() {
 }
 
 export const metadata = {
-  title: "Wave Interference - World Class Physics Lab",
+  title: "Wave Interference - Interactive Physics Lab",
   description: "Interactive 3D wave interference simulation with realistic water physics and node/antinode visualization.",
 };
