@@ -19,6 +19,6 @@ export default function ProjectileMotionRoute() {
 }
 
 export const metadata = {
-  title: "Projectile Motion - World Class Physics Lab",
+  title: "Projectile Motion - Interactive Physics Lab",
   description: "Interactive 3D projectile simulation with air resistance, trajectory prediction, and real-time data visualization.",
 };
