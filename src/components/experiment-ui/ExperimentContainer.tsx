@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, ReactNode, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, PerspectiveCamera, Environment, ContactShadows } from "@react-three/drei";
+import { ArrowLeft, Settings, BarChart3 } from "lucide-react";
 import * as THREE from "three";
 
 function CanvasResizeHandler() {
@@ -207,13 +208,14 @@ export function ExperimentContainer({
       </Canvas>
 
       {/* Header Bar with dark theme */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-3 sm:p-4 backdrop-blur-md" style={{ background: 'linear-gradient(to bottom, rgba(10, 10, 30, 0.9), rgba(10, 10, 30, 0.6), transparent)' }}>
+      <div className="absolute top-0 left-0 right-0 z-10 p-3 sm:p-4" style={{ background: 'linear-gradient(to bottom, rgba(10, 10, 30, 0.95) 0%, rgba(10, 10, 30, 0.7) 70%, transparent 100%)', backdropFilter: 'blur(12px)' }}>
         <div className="flex items-center justify-between max-w-7xl mx-auto px-2 sm:px-0">
           <button
             onClick={() => router.push("/")}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white hover:text-white text-xs sm:text-sm font-medium transition-all shadow-lg backdrop-blur-sm flex-shrink-0"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-sm font-medium transition-all duration-200 hover:scale-105 backdrop-blur-sm shadow-lg flex-shrink-0"
           >
-            ← <span className="hidden sm:inline">Home</span>
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Lab</span>
           </button>
           <div className="flex-1 min-w-0 mx-2 sm:mx-4">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight truncate drop-shadow-lg">
@@ -243,7 +245,8 @@ export function ExperimentContainer({
                 : "bg-white/20 text-white hover:bg-white/30 border border-white/30 backdrop-blur-sm shadow-lg"}
             `}
           >
-            {showControls ? "✓" : "⚙"} <span className="hidden sm:inline">Controls</span>
+            <Settings size={14} className="hidden sm:inline" />
+            {showControls ? "✓" : ""} <span className="hidden sm:inline">Controls</span>
           </button>
         )}
         {dataPanel && (
@@ -256,7 +259,8 @@ export function ExperimentContainer({
                 : "bg-white/20 text-white hover:bg-white/30 border border-white/30 backdrop-blur-sm shadow-lg"}
             `}
           >
-            {showData ? "✓" : "📊"} <span className="hidden sm:inline">Data</span>
+            <BarChart3 size={14} className="hidden sm:inline" />
+            {showData ? "✓" : ""} <span className="hidden sm:inline">Data</span>
           </button>
         )}
       </div>

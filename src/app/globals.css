@@ -13,17 +13,26 @@
   --accent-pink: #ec4899;
   --glow-blue: 0 0 20px rgba(79, 143, 255, 0.3);
   --glow-purple: 0 0 20px rgba(139, 92, 246, 0.3);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --transition-fast: 150ms ease;
+  --transition-base: 300ms ease;
+  --transition-slow: 500ms ease;
 }
 
 /* Light mode */
 .light {
-  --bg-primary: #f5f5f7;
-  --bg-secondary: #e8e8ed;
+  --bg-primary: #f8f9fc;
+  --bg-secondary: #eef0f6;
   --bg-card: #ffffff;
-  --text-primary: #1d1d1f;
-  --text-secondary: #6e6e73;
-  --glow-blue: 0 0 20px rgba(79, 143, 255, 0.15);
-  --glow-purple: 0 0 20px rgba(139, 92, 246, 0.15);
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --glow-blue: 0 0 20px rgba(79, 143, 255, 0.1);
+  --glow-purple: 0 0 20px rgba(139, 92, 246, 0.1);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
 }
 
 * {
@@ -34,6 +43,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 72px;
 }
 
 body {
@@ -43,6 +53,19 @@ body {
   transition: background 0.3s ease, color 0.3s ease;
   width: 100vw;
   min-height: 100vh;
+}
+
+/* Selection */
+::selection {
+  background: rgba(139, 92, 246, 0.3);
+  color: inherit;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* Custom scrollbar */
@@ -55,6 +78,15 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--accent-purple);
   border-radius: 4px;
+}
+
+/* Scrollbar hide utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Glow effects */
@@ -71,9 +103,10 @@ body {
 
 /* Glass morphism - light mode */
 .light .glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 /* Canvas container */
@@ -99,6 +132,19 @@ canvas {
   display: block;
   width: 100vw;
   height: 100vh;
+}
+
+/* Subtle pulse glow for primary CTA */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(79, 143, 255, 0.25), 0 0 60px rgba(139, 92, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(79, 143, 255, 0.35), 0 0 80px rgba(139, 92, 246, 0.15);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
 }
 
 /* Responsive adjustments */

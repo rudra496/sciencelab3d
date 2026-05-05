@@ -3,7 +3,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { experiments, categories } from "@/data/experiments";
 import { AnimatePresence, motion } from "framer-motion";
-import { Star, Moon, Sun, Github, Linkedin, Facebook, Mail, Globe } from "lucide-react";
+import {
+  Star, Moon, Sun, Github, Linkedin, Facebook, Mail, Globe,
+  Search, X, ChevronDown, ArrowRight,
+} from "lucide-react";
 
 // Favorites utilities
 function getFavorites(): string[] {
@@ -19,6 +22,55 @@ function isFavorite(id: string): boolean {
   return getFavorites().includes(id);
 }
 
+// ========== NAVBAR ==========
+function Navbar({ theme, toggleTheme }: { theme: string; toggleTheme: () => void }) {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handler);
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
+
+  return (
+    <nav
+      className={`sticky top-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? "glass border-b border-white/10 shadow-lg"
+          : "bg-transparent"
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <a
+          href="/"
+          className="text-lg font-bold bg-linear-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent"
+        >
+          ScienceLab 3D
+        </a>
+        <div className="hidden md:flex gap-2">
+          {categories.map((cat) => (
+            <a
+              key={cat.id}
+              href={`#experiments`}
+              className="px-3 py-1.5 rounded-full text-sm text-gray-400 hover:text-white glass hover:scale-105 transition-all"
+            >
+              {cat.icon} {cat.name}
+            </a>
+          ))}
+        </div>
+        <button
+          onClick={toggleTheme}
+          className="p-2.5 glass rounded-full hover:scale-105 transition-transform"
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+// ========== HERO SECTION ==========
 function HeroSection() {
   return (
     <section className="relative min-h-[70vh] flex flex-col items-center justify-center text-center px-4 overflow-hidden">
@@ -45,13 +97,16 @@ function HeroSection() {
         transition={{ duration: 0.8 }}
         className="relative z-10"
       >
-        <div className="text-sm font-mono text-blue-400 mb-4 tracking-widest uppercase">
+        <div className="text-xs sm:text-sm font-medium text-blue-300/70 mb-4 tracking-[0.3em] uppercase">
           Interactive 3D Science Platform
         </div>
-        <h1 className="text-5xl md:text-7xl font-black mb-6 bg-linear-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent leading-tight">
+        <h1
+          className="text-5xl md:text-7xl font-black mb-6 bg-linear-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent leading-tight"
+          style={{ filter: "drop-shadow(0 0 30px rgba(139,92,246,0.3))" }}
+        >
           ScienceLab 3D
         </h1>
-        <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-8">
+        <p className="text-lg md:text-2xl text-gray-300 max-w-2xl mx-auto mb-8 leading-relaxed">
           Explore 40+ interactive experiments across Physics, Chemistry, Biology,
           and Mathematics. Control variables, watch simulations, and learn
           science like never before.
@@ -59,13 +114,13 @@ function HeroSection() {
         <div className="flex gap-4 justify-center flex-wrap">
           <a
             href="#experiments"
-            className="px-8 py-3 bg-linear-to-r from-blue-600 to-purple-600 rounded-full font-semibold hover:scale-105 transition-transform shadow-lg shadow-blue-500/25"
+            className="px-8 py-3.5 bg-linear-to-r from-blue-600 to-purple-600 rounded-full font-semibold hover:scale-105 transition-transform animate-pulse-glow"
           >
             Start Exploring
           </a>
           <a
             href="#about"
-            className="px-8 py-3 glass rounded-full font-semibold hover:scale-105 transition-transform"
+            className="px-8 py-3.5 glass rounded-full font-semibold hover:scale-105 transition-transform"
           >
             Learn More
           </a>
@@ -93,10 +148,20 @@ function HeroSection() {
           </div>
         ))}
       </motion.div>
+
+      {/* Scroll indicator */}
+      <motion.div
+        className="absolute bottom-8 z-10"
+        animate={{ y: [0, 8, 0] }}
+        transition={{ repeat: Infinity, duration: 2 }}
+      >
+        <ChevronDown className="text-gray-500" size={24} />
+      </motion.div>
     </section>
   );
 }
 
+// ========== CATEGORY BADGE ==========
 function CategoryBadge({
   category,
   active,
@@ -109,7 +174,7 @@ function CategoryBadge({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all duration-300 ${
+      className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all duration-300 ${
         active
           ? "text-white shadow-lg scale-105"
           : "glass text-gray-400 hover:text-white hover:scale-102"
@@ -126,10 +191,17 @@ function CategoryBadge({
     >
       <span className="text-xl">{category.icon}</span>
       {category.name}
+      {active && (
+        <motion.div
+          layoutId="activeCategory"
+          className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-white"
+        />
+      )}
     </button>
   );
 }
 
+// ========== EXPERIMENT CARD ==========
 function ExperimentCard({ exp, index, onToggleFavorite }: {
   exp: (typeof experiments)[0];
   index: number;
@@ -152,9 +224,10 @@ function ExperimentCard({ exp, index, onToggleFavorite }: {
     <motion.a
       href={`/experiments/${exp.id}`}
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: index * 0.05 }}
-      className="group glass rounded-2xl p-6 hover:scale-[1.02] transition-all duration-300 cursor-pointer block relative"
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-50px" }}
+      transition={{ duration: 0.4, delay: Math.min(index * 0.03, 0.6) }}
+      className="group glass rounded-2xl p-6 hover:-translate-y-1 transition-all duration-300 cursor-pointer block relative"
       style={{
         borderColor: `${exp.color}15`,
       }}
@@ -167,6 +240,12 @@ function ExperimentCard({ exp, index, onToggleFavorite }: {
         (e.currentTarget as HTMLElement).style.borderColor = `${exp.color}15`;
       }}
     >
+      {/* Category color accent bar */}
+      <div
+        className="absolute top-0 left-4 right-4 h-[3px] rounded-b-full"
+        style={{ background: `linear-gradient(90deg, ${exp.color}, ${exp.color}66)` }}
+      />
+
       <button
         onClick={handleClickFavorite}
         className={`absolute top-4 right-4 p-2 rounded-lg transition-all ${
@@ -208,10 +287,21 @@ function ExperimentCard({ exp, index, onToggleFavorite }: {
           </span>
         )}
       </div>
+
+      {/* Launch indicator on hover */}
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <span className="text-xs font-medium capitalize" style={{ color: exp.color }}>
+          {exp.category}
+        </span>
+        <span className="text-xs text-gray-400 flex items-center gap-1">
+          Launch <ArrowRight size={12} />
+        </span>
+      </div>
     </motion.a>
   );
 }
 
+// ========== HOME PAGE ==========
 export default function Home() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
   const [search, setSearch] = useState("");
@@ -226,7 +316,6 @@ export default function Home() {
         setTheme(savedTheme);
         document.documentElement.classList.toggle("light", savedTheme === "light");
       }
-      // Update favorites count
       setFavoritesCount(getFavorites().length);
     }
   }, []);
@@ -267,29 +356,13 @@ export default function Home() {
     } else {
       localStorage.setItem("favorites", JSON.stringify([...favorites, id]));
     }
-    // Update favorites count
     setFavoritesCount(getFavorites().length);
-    // Force re-render by updating state
     setShowFavoritesOnly((prev) => prev);
   };
 
-  const favoriteCategories = [
-    { id: "all", name: "All Experiments", icon: "🔬" },
-    { id: "favorites", name: "⭐ Favorites", icon: "" },
-    ...categories,
-  ];
-
   return (
     <main>
-      {/* Theme toggle button */}
-      <button
-        onClick={toggleTheme}
-        className="fixed top-4 right-4 z-50 p-3 glass rounded-full shadow-lg hover:scale-105 transition-transform"
-        title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-      >
-        {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-      </button>
-
+      <Navbar theme={theme} toggleTheme={toggleTheme} />
       <HeroSection />
 
       {/* Experiments Section */}
@@ -300,33 +373,43 @@ export default function Home() {
           viewport={{ once: true }}
           className="mb-12"
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center relative inline-block w-full">
             Explore Experiments
+            <span className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-16 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
           </h2>
-          <p className="text-gray-400 text-center mb-8 max-w-xl mx-auto">
+          <p className="text-gray-400 text-center mb-8 max-w-xl mx-auto mt-4">
             Choose a subject or search for a specific experiment. Each one is
             fully interactive with real-time 3D controls.
           </p>
 
           {/* Search */}
-          <div className="max-w-md mx-auto mb-8">
+          <div className="max-w-md mx-auto mb-8 relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
             <input
               type="text"
-              placeholder="Search experiments by name, topic, or description..."
+              placeholder="Search experiments..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-5 py-3 glass rounded-xl bg-transparent text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-purple-500/50"
+              className="w-full pl-11 pr-10 py-3 glass rounded-xl bg-transparent text-white placeholder-gray-500 outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
             />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           {/* Category filters */}
-          <div className="flex gap-3 justify-center flex-wrap mb-12">
+          <div className="flex gap-3 justify-start md:justify-center overflow-x-auto pb-2 px-4 -mx-4 md:mx-0 md:px-0 scrollbar-hide">
             <button
               onClick={() => {
                 setActiveCategory("all");
                 setShowFavoritesOnly(false);
               }}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all duration-300 ${
+              className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all duration-300 whitespace-nowrap ${
                 activeCategory === "all" && !showFavoritesOnly
                   ? "bg-linear-to-r from-blue-600/20 to-purple-600/20 text-white shadow-lg shadow-purple-500/20 scale-105"
                   : "glass text-gray-400 hover:text-white"
@@ -334,6 +417,12 @@ export default function Home() {
             >
               <span className="text-xl">🔬</span>
               All Experiments
+              {activeCategory === "all" && !showFavoritesOnly && (
+                <motion.div
+                  layoutId="activeCategory"
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-white"
+                />
+              )}
             </button>
 
             {/* Favorites filter */}
@@ -342,7 +431,7 @@ export default function Home() {
                 setActiveCategory("all");
                 setShowFavoritesOnly((prev) => !prev);
               }}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all duration-300 ${
+              className={`relative flex items-center gap-2 px-5 py-2.5 rounded-full font-medium transition-all duration-300 whitespace-nowrap ${
                 showFavoritesOnly
                   ? "bg-linear-to-r from-yellow-600/20 to-orange-600/20 text-white shadow-lg shadow-yellow-500/20 scale-105"
                   : "glass text-gray-400 hover:text-white"
@@ -354,6 +443,12 @@ export default function Home() {
                 <span className="ml-1 text-xs bg-white/20 px-2 py-0.5 rounded-full">
                   {favoritesCount}
                 </span>
+              )}
+              {showFavoritesOnly && (
+                <motion.div
+                  layoutId="activeCategory"
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-white"
+                />
               )}
             </button>
 
@@ -420,8 +515,14 @@ export default function Home() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
         >
-          <h2 className="text-3xl font-bold mb-6">How It Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <h2 className="text-3xl font-bold mb-4 relative inline-block">
+            How It Works
+            <span className="absolute bottom-[-8px] left-1/2 -translate-x-1/2 w-16 h-1 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" />
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative mt-8">
+            {/* Connecting line */}
+            <div className="hidden md:block absolute top-10 left-[20%] right-[20%] h-px bg-gradient-to-r from-blue-500/30 via-purple-500/30 to-cyan-500/30" />
+
             {[
               {
                 icon: "🎯",
@@ -438,94 +539,138 @@ export default function Home() {
                 title: "Learn",
                 desc: "Watch 3D simulations and understand the science behind each experiment",
               },
-            ].map((s) => (
-              <div key={s.title} className="glass rounded-2xl p-6">
+            ].map((s, i) => (
+              <motion.div
+                key={s.title}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.15 }}
+                className="relative glass rounded-2xl p-8 text-center group hover:scale-[1.02] transition-transform"
+              >
+                <div className="w-10 h-10 mx-auto mb-4 rounded-full bg-linear-to-r from-blue-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm relative z-10">
+                  {i + 1}
+                </div>
                 <span className="text-4xl mb-4 block">{s.icon}</span>
                 <h3 className="text-xl font-bold mb-2">{s.title}</h3>
                 <p className="text-gray-400 text-sm">{s.desc}</p>
-              </div>
+              </motion.div>
             ))}
           </div>
         </motion.div>
       </section>
 
+      {/* CTA Section */}
+      <section className="max-w-4xl mx-auto px-4 py-12 text-center">
+        <div className="glass rounded-2xl p-8 md:p-12">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Explore Science?</h2>
+          <p className="text-gray-400 mb-6">40+ free interactive 3D experiments. No downloads, no sign-ups.</p>
+          <a
+            href="#experiments"
+            className="inline-block px-8 py-3 bg-linear-to-r from-blue-600 to-purple-600 rounded-full font-semibold hover:scale-105 transition-transform shadow-lg shadow-blue-500/25"
+          >
+            Start Now
+          </a>
+        </div>
+      </section>
+
       {/* Footer */}
-      <footer className="border-t border-white/5 py-12 text-center text-gray-500 text-sm">
-        <div className="max-w-4xl mx-auto px-4">
-          {/* Social Links */}
-          <div className="flex gap-4 justify-center mb-6 flex-wrap" aria-label="Social media links">
-            <a
-              href="https://rudra496.github.io/site"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Rudra Sarker — Portfolio Website"
-              aria-label="Portfolio Website"
-              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200"
-            >
-              <Globe size={16} aria-hidden="true" />
-              <span>Portfolio</span>
-            </a>
-            <a
-              href="https://github.com/rudra496"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Rudra Sarker on GitHub"
-              aria-label="GitHub Profile"
-              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200"
-            >
-              <Github size={16} aria-hidden="true" />
-              <span>GitHub</span>
-            </a>
-            <a
-              href="https://www.linkedin.com/in/rudrasarker"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Rudra Sarker on LinkedIn"
-              aria-label="LinkedIn Profile"
-              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-blue-400 hover:scale-105 transition-all duration-200"
-            >
-              <Linkedin size={16} aria-hidden="true" />
-              <span>LinkedIn</span>
-            </a>
-            <a
-              href="https://www.facebook.com/share/1AHSdHLeoz/"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Rudra Sarker on Facebook"
-              aria-label="Facebook Profile"
-              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-blue-500 hover:scale-105 transition-all duration-200"
-            >
-              <Facebook size={16} aria-hidden="true" />
-              <span>Facebook</span>
-            </a>
-            <a
-              href="mailto:rudrasarker125@gmail.com"
-              title="Email Rudra Sarker"
-              aria-label="Email Contact"
-              className="flex items-center gap-2 px-4 py-2 glass rounded-full text-gray-400 hover:text-red-400 hover:scale-105 transition-all duration-200"
-            >
-              <Mail size={16} aria-hidden="true" />
-              <span>Email</span>
-            </a>
+      <footer className="border-t border-white/5 pt-12 pb-8 text-center text-gray-500 text-sm">
+        <div className="h-px bg-gradient-to-r from-transparent via-purple-500/30 to-transparent mb-12" />
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10 text-left">
+            {/* Brand */}
+            <div>
+              <h3 className="text-lg font-bold bg-linear-to-r from-blue-400 via-purple-400 to-cyan-400 bg-clip-text text-transparent mb-3">
+                ScienceLab 3D
+              </h3>
+              <p className="text-gray-500 text-sm leading-relaxed">
+                Free interactive 3D science experiments for Physics, Chemistry, Biology &amp; Mathematics.
+              </p>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Quick Links</h4>
+              <div className="space-y-2">
+                {categories.map((cat) => (
+                  <a
+                    key={cat.id}
+                    href="#experiments"
+                    className="block text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    {cat.icon} {cat.name} Experiments
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Connect */}
+            <div>
+              <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Connect</h4>
+              <div className="flex gap-3 flex-wrap">
+                <a
+                  href="https://rudra496.github.io/site"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200 text-sm"
+                >
+                  <Globe size={14} />
+                  <span>Portfolio</span>
+                </a>
+                <a
+                  href="https://github.com/rudra496"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200 text-sm"
+                >
+                  <Github size={14} />
+                  <span>GitHub</span>
+                </a>
+                <a
+                  href="https://www.linkedin.com/in/rudrasarker"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-blue-400 hover:scale-105 transition-all duration-200 text-sm"
+                >
+                  <Linkedin size={14} />
+                  <span>LinkedIn</span>
+                </a>
+                <a
+                  href="https://www.facebook.com/share/1AHSdHLeoz/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-blue-500 hover:scale-105 transition-all duration-200 text-sm"
+                >
+                  <Facebook size={14} />
+                  <span>Facebook</span>
+                </a>
+                <a
+                  href="mailto:rudrasarker125@gmail.com"
+                  className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-red-400 hover:scale-105 transition-all duration-200 text-sm"
+                >
+                  <Mail size={14} />
+                  <span>Email</span>
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* Copyright */}
-          <p className="text-gray-600 mb-2">
-            Built with ❤️ by{" "}
-            <a
-              href="https://rudra496.github.io/site"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-purple-400 hover:text-purple-300 transition-colors"
-              aria-label="Rudra Sarker's Portfolio"
-            >
-              Rudra Sarker
-            </a>{" "}
-            — ScienceLab 3D © 2026
-          </p>
-          <p className="text-gray-700 text-xs">
-            Free interactive 3D science experiments for Physics, Chemistry, Biology &amp; Mathematics
-          </p>
+          <div className="border-t border-white/5 pt-6">
+            <p className="text-gray-600 mb-1">
+              Built with ❤️ by{" "}
+              <a
+                href="https://rudra496.github.io/site"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-purple-400 hover:text-purple-300 transition-colors"
+              >
+                Rudra Sarker
+              </a>{" "}
+              — ScienceLab 3D © 2026
+            </p>
+          </div>
         </div>
       </footer>
     </main>
