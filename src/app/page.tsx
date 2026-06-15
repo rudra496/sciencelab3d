@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { experiments, categories } from "@/data/experiments";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Star, Moon, Sun, Github, Linkedin, Facebook, Mail, Globe,
+  Star, Moon, Sun, Mail, Globe,
   Search, X, ChevronDown, ArrowRight,
 } from "lucide-react";
 
@@ -624,7 +624,6 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-white hover:scale-105 transition-all duration-200 text-sm"
                 >
-                  <Github size={14} />
                   <span>GitHub</span>
                 </a>
                 <a
@@ -633,7 +632,6 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-blue-400 hover:scale-105 transition-all duration-200 text-sm"
                 >
-                  <Linkedin size={14} />
                   <span>LinkedIn</span>
                 </a>
                 <a
@@ -642,7 +640,6 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 px-3 py-1.5 glass rounded-full text-gray-400 hover:text-blue-500 hover:scale-105 transition-all duration-200 text-sm"
                 >
-                  <Facebook size={14} />
                   <span>Facebook</span>
                 </a>
                 <a
