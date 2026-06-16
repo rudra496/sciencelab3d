@@ -1,5 +1,5 @@
 import AtomicStructurePage from "@/experiments/atomic-structure-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function AtomicStructureRoute() { return <AtomicStructurePage />; }
 
 export const metadata = {

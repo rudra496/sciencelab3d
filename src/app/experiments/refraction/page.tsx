@@ -1,6 +1,6 @@
 import RefractionPage from "@/experiments/refraction-page";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export default function RefractionRoute() { return <RefractionPage />; }
 

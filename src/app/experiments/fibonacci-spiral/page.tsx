@@ -1,5 +1,5 @@
 import FibonacciSpiralPage from "@/experiments/fibonacci-spiral-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function FibonacciSpiralRoute() { return <FibonacciSpiralPage />; }
 
 export const metadata = {

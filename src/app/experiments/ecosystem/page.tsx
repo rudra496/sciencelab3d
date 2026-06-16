@@ -1,6 +1,6 @@
 import EcosystemPage from '@/experiments/ecosystem-page';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export default function Route() {
   return <EcosystemPage />;

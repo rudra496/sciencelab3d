@@ -4,7 +4,7 @@
 
 **The world's most interactive 3D science learning platform — free, open-source, and browser-based.**
 
-[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-science--lab--3d.vercel.app-4f8fff?style=for-the-badge)](https://science-lab-3d.vercel.app)
+[![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-rudra496.github.io/sciencelab3d-4f8fff?style=for-the-badge)](https://rudra496.github.io/sciencelab3d)
 [![GitHub Stars](https://img.shields.io/github/stars/rudra496/sciencelab3d?style=for-the-badge&color=yellow)](https://github.com/rudra496/sciencelab3d/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/rudra496/sciencelab3d?style=for-the-badge&color=blue)](https://github.com/rudra496/sciencelab3d/forks)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](./LICENSE)
@@ -17,7 +17,7 @@
 
 ## 🌐 Live Website
 
-**Live Demo: [https://sciencelab-two.vercel.app](https://sciencelab-two.vercel.app)**
+**Live Demo: [https://rudra496.github.io/sciencelab3d](https://rudra496.github.io/sciencelab3d)**
 
 Experience the fully deployed **interactive 3D science lab** — featuring virtual science experiments for Physics, Chemistry, Biology, and Mathematics, accessible instantly in your browser on any device.
 

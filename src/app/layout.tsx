@@ -10,7 +10,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-const SITE_URL = "https://sciencelab-two.vercel.app";
+const SITE_URL = "https://rudra496.github.io/sciencelab3d";
 const SITE_NAME = "ScienceLab 3D";
 const SITE_TITLE = "ScienceLab 3D — Interactive STEM Education | 40+ Virtual Science Experiments";
 const SITE_DESCRIPTION =

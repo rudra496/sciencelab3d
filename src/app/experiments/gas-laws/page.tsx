@@ -1,6 +1,6 @@
 import GasLawsPage from "@/experiments/gas-laws-page";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export default function GasLawsRoute() { return <GasLawsPage />; }
 

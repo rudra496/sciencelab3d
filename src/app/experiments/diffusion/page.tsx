@@ -1,6 +1,6 @@
 import DiffusionPage from '@/experiments/diffusion-page';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export default function Route() {
   return <DiffusionPage />;

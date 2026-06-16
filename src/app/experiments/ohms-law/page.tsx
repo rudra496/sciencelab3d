@@ -1,5 +1,5 @@
 import OhmsLawPage from "@/experiments/ohms-law-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function OhmsLawRoute() { return <OhmsLawPage />; }
 
 export const metadata = {

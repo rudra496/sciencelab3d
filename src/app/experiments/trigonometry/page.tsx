@@ -1,5 +1,5 @@
 import TrigonometryPage from "@/experiments/trigonometry-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function TrigonometryRoute() { return <TrigonometryPage />; }
 
 export const metadata = {

@@ -1,5 +1,5 @@
 import ElectrolysisPage from "@/experiments/electrolysis-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function ElectrolysisRoute() { return <ElectrolysisPage />; }
 
 export const metadata = {

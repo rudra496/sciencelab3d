@@ -1,5 +1,5 @@
 import ComplexNumbersPage from "@/experiments/complex-numbers-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function ComplexNumbersRoute() { return <ComplexNumbersPage />; }
 
 export const metadata = {

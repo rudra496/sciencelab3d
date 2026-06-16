@@ -13,7 +13,7 @@
 
 import PendulumExperimentPage from "@/experiments/pendulum-page";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 export default function PendulumRoute() {
   return <PendulumExperimentPage />;

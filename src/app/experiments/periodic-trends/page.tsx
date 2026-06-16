@@ -1,5 +1,5 @@
 import PeriodicTrendsPage from "@/experiments/periodic-trends-page";
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 export default function PeriodicTrendsRoute() { return <PeriodicTrendsPage />; }
 
 export const metadata = {
