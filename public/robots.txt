@@ -2,7 +2,7 @@ User-agent: *
 Allow: /
 
 # Sitemap
-Sitemap: https://rudra496.github.io/sciencelab3d/sitemap.xml
+Sitemap: https://sciencelab-two.vercel.app/sitemap.xml
 
 # Crawl-delay (optional, helps avoid overloading small servers)
 Crawl-delay: 1

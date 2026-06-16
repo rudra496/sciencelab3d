@@ -1,5 +1,5 @@
 import TopologySurfacesPage from "@/experiments/topology-surfaces-page";
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 export default function TopologySurfacesRoute() { return <TopologySurfacesPage />; }
 
 export const metadata = {

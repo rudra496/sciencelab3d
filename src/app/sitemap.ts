@@ -1,8 +1,7 @@
 import { MetadataRoute } from "next";
 import { experiments } from "@/data/experiments";
 
-const SITE_URL = "https://rudra496.github.io/sciencelab3d";
-export const dynamic = "force-static";
+const SITE_URL = "https://sciencelab-two.vercel.app";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

@@ -1,6 +1,6 @@
 import DoubleSlitPage from "@/experiments/double-slit-page";
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export default function DoubleSlitRoute() { return <DoubleSlitPage />; }
 

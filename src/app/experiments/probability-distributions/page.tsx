@@ -1,5 +1,5 @@
 import ProbabilityDistributionsPage from "@/experiments/probability-distributions-page";
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 export default function ProbabilityDistributionsRoute() { return <ProbabilityDistributionsPage />; }
 
 export const metadata = {

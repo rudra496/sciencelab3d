@@ -1,6 +1,6 @@
 import SpringMassPage from "@/experiments/spring-mass-page";
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export default function SpringMassRoute() { return <SpringMassPage />; }
 

@@ -1,6 +1,6 @@
 import WaveInterferencePage from "@/experiments/wave-interference-page";
 
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 
 export default function WaveInterferenceRoute() {
   return <WaveInterferencePage />;
