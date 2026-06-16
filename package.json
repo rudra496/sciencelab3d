@@ -20,7 +20,7 @@
     "lucide-react": "^1.18.0"
   },
   "devDependencies": {
-    "typescript": "^5.8.0",
+    "typescript": "^6.0.3",
     "@types/node": "^25.9.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
