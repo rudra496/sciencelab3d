@@ -14,7 +14,7 @@
     "@react-three/fiber": "^9.1.0",
     "@react-three/drei": "^10.0.0",
     "@react-three/postprocessing": "^3.0.0",
-    "three": "^0.184.0",
+    "three": "^0.185.0",
     "leva": "^0.10.0",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.18.0"
@@ -24,7 +24,7 @@
     "@types/node": "^25.9.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@types/three": "^0.184.1",
+    "@types/three": "^0.185.0",
     "tailwindcss": "^4.0.0",
     "@tailwindcss/postcss": "^4.3.1",
     "postcss": "^8.5.15"
