@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+title: "ScienceLab 3D — Interactive STEM Education Platform"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: Rudra
+    family-names: Sarker
+    affiliation: "Shahjalal University of Science and Technology, Bangladesh"
+    orcid: "https://orcid.org/0009-0001-4545-0932"
+repository-code: "https://github.com/rudra496/sciencelab3d"
+url: "https://sciencelab-two.vercel.app"
+abstract: "Interactive 3D STEM education platform with 40+ virtual experiments in physics, chemistry and biology."
+license: MIT
