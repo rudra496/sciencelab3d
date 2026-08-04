@@ -41,7 +41,7 @@ jobs:
           set -uo pipefail
           echo "::group::Dependabot Autopilot — $REPO"
           mapfile -t PRS < <(gh pr list --repo "$REPO" --state open --json number,author \
-            --jq '.[] | select(.author.login=="dependabot[bot]" or .author.login=="github-actions[bot]") | .number')
+            --jq '.[] | select((.author.login // "") | test("dependabot|github-actions")) | .number')
           echo "Open bot PRs: ${#PRS[@]}"
           for num in "${PRS[@]}"; do
             echo "--- PR #$num ---"
