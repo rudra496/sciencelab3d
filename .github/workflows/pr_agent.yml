@@ -17,8 +17,8 @@ jobs:
         id: pragent
         uses: the-pr-agent/pr-agent@v0.41.1
         env:
-          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
-          OPENAI_KEY: *** secrets.ZAI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.ZAI_API_KEY }}
           OPENAI.API_BASE: "https://api.z.ai/api/coding/paas/v4"
           config.model: "openai/glm-5.2"
           config.fallback_models: '["openai/glm-4.7"]'
