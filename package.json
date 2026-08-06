@@ -14,7 +14,7 @@
     "@react-three/fiber": "^9.7.0",
     "@react-three/drei": "^10.0.0",
     "@react-three/postprocessing": "^3.0.0",
-    "three": "^0.184.0",
+    "three": "^0.185.1",
     "leva": "^0.10.0",
     "framer-motion": "^12.43.0",
     "lucide-react": "^1.28.0"
