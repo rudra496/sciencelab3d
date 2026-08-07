@@ -8,6 +8,7 @@ jobs:
   pr_review:
     name: Autonomous PR Reviewer
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write
@@ -24,6 +25,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            if (!context.payload.pull_request) {
+              console.log('No pull_request payload. Skipping review.');
+              return;
+            }
+
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -78,22 +84,27 @@ jobs:
               }
             }
 
-            let fileListStr = files.slice(0, 10).map(f => `- \`${f.filename}\` (+${f.additions}/-${f.deletions})`).join('\n');
+            let fileListLines = files.slice(0, 10).map(f => `- \`${f.filename}\` (+${f.additions}/-${f.deletions})`);
             if (files.length > 10) {
-              fileListStr += `\n- ...and ${files.length - 10} more files`;
+              fileListLines.push(`- ...and ${files.length - 10} more files`);
             }
+            let fileListStr = fileListLines.join('
+');
 
             let securitySection = findings.length > 0 
-              ? `### 🛡️ Security & Quality Findings\n${findings.join('\n')}`
-              : `### 🛡️ Security & Quality Assessment\n- ✅ No hardcoded secrets or suspicious debugging statements detected.`;
+              ? `### 🛡️ Security & Quality Findings
+${findings.join('
+')}`
+              : `### 🛡️ Security & Quality Assessment
+- ✅ No hardcoded secrets or suspicious debugging statements detected.`;
 
             const commentBody = `## 🤖 Autonomous PR Agent Review
 
 ### 📊 Change Overview
-- **Files Changed**: \\`${fileCount}\\`
-- **Lines Added**: \\`+${additions}\\`
-- **Lines Deleted**: \\`-${deletions}\\`
-- **Triage Size**: \\`${sizeLabel}\\`
+- **Files Changed**: \`${fileCount}\`
+- **Lines Added**: \`+${additions}\`
+- **Lines Deleted**: \`-${deletions}\`
+- **Triage Size**: \`${sizeLabel}\`
 
 ### 📁 Modified Files (Top 10)
 ${fileListStr}
@@ -110,7 +121,7 @@ ${securitySection}
               issue_number: context.payload.pull_request.number
             });
 
-            const botComment = comments.find(c => c.user.login === 'github-actions[bot]' && c.body.includes('Autonomous PR Agent Review'));
+            const botComment = comments.find(c => c.user && c.user.login === 'github-actions[bot]' && c.body && c.body.includes('Autonomous PR Agent Review'));
 
             if (botComment) {
               await github.rest.issues.updateComment({
