@@ -1,0 +1,129 @@
+name: PR Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr_review:
+    name: Autonomous PR Reviewer
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Free PR Agent Review
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+
+            let additions = pr.additions;
+            let deletions = pr.deletions;
+            let totalChanges = additions + deletions;
+            let fileCount = files.length;
+
+            let sizeLabel = 'size/S';
+            if (totalChanges > 500 || fileCount > 20) {
+              sizeLabel = 'size/XL';
+            } else if (totalChanges > 200 || fileCount > 10) {
+              sizeLabel = 'size/L';
+            } else if (totalChanges > 50 || fileCount > 5) {
+              sizeLabel = 'size/M';
+            }
+
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: [sizeLabel]
+              });
+            } catch (err) {
+              console.log('Label add error (ignored):', err.message);
+            }
+
+            let findings = [];
+            let suspiciousPatterns = [
+              { regex: /sk-[a-zA-Z0-9]{32,}/, msg: 'Possible hardcoded API key detected' },
+              { regex: /BEGIN PRIVATE KEY/, msg: 'Possible private key detected' },
+              { regex: /debugger;/, msg: '`debugger;` statement found' }
+            ];
+
+            for (const file of files) {
+              if (file.patch) {
+                for (const pattern of suspiciousPatterns) {
+                  if (pattern.regex.test(file.patch)) {
+                    findings.push(`- ⚠️ **${file.filename}**: ${pattern.msg}`);
+                  }
+                }
+              }
+            }
+
+            let fileListStr = files.slice(0, 10).map(f => `- \`${f.filename}\` (+${f.additions}/-${f.deletions})`).join('\n');
+            if (files.length > 10) {
+              fileListStr += `\n- ...and ${files.length - 10} more files`;
+            }
+
+            let securitySection = findings.length > 0 
+              ? `### 🛡️ Security & Quality Findings\n${findings.join('\n')}`
+              : `### 🛡️ Security & Quality Assessment\n- ✅ No hardcoded secrets or suspicious debugging statements detected.`;
+
+            const commentBody = `## 🤖 Autonomous PR Agent Review
+
+### 📊 Change Overview
+- **Files Changed**: \\`${fileCount}\\`
+- **Lines Added**: \\`+${additions}\\`
+- **Lines Deleted**: \\`-${deletions}\\`
+- **Triage Size**: \\`${sizeLabel}\\`
+
+### 📁 Modified Files (Top 10)
+${fileListStr}
+
+${securitySection}
+
+### ✅ Recommendation
+- All automated checks initiated. Ensure CI builds pass before merging.
+`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number
+            });
+
+            const botComment = comments.find(c => c.user.login === 'github-actions[bot]' && c.body.includes('Autonomous PR Agent Review'));
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                body: commentBody
+              });
+            }
