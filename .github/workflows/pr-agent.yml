@@ -9,7 +9,7 @@ jobs:
   pr_review:
     name: Autonomous PR Reviewer
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       pull-requests: write
