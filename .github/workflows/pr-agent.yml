@@ -3,6 +3,7 @@ name: PR Agent
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 jobs:
   pr_review:
