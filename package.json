@@ -17,7 +17,7 @@
     "three": "^0.184.0",
     "leva": "^0.10.0",
     "framer-motion": "^13.0.0",
-    "lucide-react": "^1.28.0"
+    "lucide-react": "^1.29.0"
   },
   "devDependencies": {
     "typescript": "^7.0.2",
