@@ -89,15 +89,11 @@ jobs:
             if (files.length > 10) {
               fileListLines.push(`- ...and ${files.length - 10} more files`);
             }
-            let fileListStr = fileListLines.join('
-');
+            let fileListStr = fileListLines.join('\n');
 
             let securitySection = findings.length > 0 
-              ? `### 🛡️ Security & Quality Findings
-${findings.join('
-')}`
-              : `### 🛡️ Security & Quality Assessment
-- ✅ No hardcoded secrets or suspicious debugging statements detected.`;
+              ? `### 🛡️ Security & Quality Findings\n${findings.join('\n')}`
+              : `### 🛡️ Security & Quality Assessment\n- ✅ No hardcoded secrets or suspicious debugging statements detected.`;
 
             const commentBody = `## 🤖 Autonomous PR Agent Review
 
