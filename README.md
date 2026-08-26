@@ -4,6 +4,7 @@
 
 **The world's most interactive 3D science learning platform — free, open-source, and browser-based.**
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22118690.svg)](https://doi.org/10.5281/zenodo.22118690)
 [![Live Demo](https://img.shields.io/badge/🚀_Live_Demo-science--lab--3d.vercel.app-4f8fff?style=for-the-badge)](https://science-lab-3d.vercel.app)
 [![GitHub Stars](https://img.shields.io/github/stars/rudra496/sciencelab3d?style=for-the-badge&color=yellow)](https://github.com/rudra496/sciencelab3d/stargazers)
 [![GitHub Forks](https://img.shields.io/github/forks/rudra496/sciencelab3d?style=for-the-badge&color=blue)](https://github.com/rudra496/sciencelab3d/forks)
