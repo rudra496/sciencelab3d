@@ -1,13 +1,19 @@
 cff-version: 1.2.0
-title: "ScienceLab 3D — Interactive STEM Education Platform"
-message: "If you use this software, please cite it as below."
-type: software
+message: "If you use ScienceLab 3D or reference its virtual STEM simulations, please cite it as below."
+title: "ScienceLab 3D: Interactive STEM Education Platform and Virtual Laboratory Simulations"
 authors:
-  - given-names: Rudra
-    family-names: Sarker
-    affiliation: "Shahjalal University of Science and Technology, Bangladesh"
+  - family-names: "Sarker"
+    given-names: "Rudra"
     orcid: "https://orcid.org/0009-0001-4545-0932"
+abstract: "ScienceLab 3D is an open-source virtual laboratory simulation suite designed for interactive STEM education, physics simulations, chemical reactions, and biological systems modeling. Developed to democratize experiential science learning globally."
+version: 1.1.0
+date-released: 2026-08-26
+license: "MIT"
 repository-code: "https://github.com/rudra496/sciencelab3d"
 url: "https://sciencelab-two.vercel.app"
-abstract: "Interactive 3D STEM education platform with 40+ virtual experiments in physics, chemistry and biology."
-license: MIT
+keywords:
+  - "stem-education"
+  - "virtual-laboratory"
+  - "3d-simulation"
+  - "science-pedagogy"
+  - "open-source"
