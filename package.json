@@ -24,7 +24,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^25.9.3",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.2.5",
+    "@types/react-dom": "^19.2.7",
     "@types/three": "^0.184.1",
     "postcss": "^8.5.25",
     "tailwindcss": "^4.3.3",
